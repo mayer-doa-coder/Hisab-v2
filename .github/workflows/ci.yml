@@ -10,24 +10,44 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Phase 0 hasn't landed the npm workspace yet, so package.json /
+      # package-lock.json don't exist. Skip the npm-based checks until
+      # they do, rather than failing CI on every commit before there is
+      # any code to check.
+      - name: Check for npm workspace
+        id: workspace
+        run: echo "present=$( [ -f package-lock.json ] && echo true || echo false )" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-node@v4
+        if: steps.workspace.outputs.present == 'true'
         with:
           node-version-file: '.nvmrc'
           cache: npm
+
+      - name: No package-lock.json yet — nothing to verify
+        if: steps.workspace.outputs.present != 'true'
+        run: echo "::notice::No package-lock.json yet — skipping npm-based checks (expected pre-Phase-0)."
+
       - run: npm ci
+        if: steps.workspace.outputs.present == 'true'
 
       - name: Typecheck (strict, all workspaces)
+        if: steps.workspace.outputs.present == 'true'
         run: npm run typecheck
 
       - name: Lint (zero warnings)
+        if: steps.workspace.outputs.present == 'true'
         run: npm run lint
 
       - name: Test
+        if: steps.workspace.outputs.present == 'true'
         run: npm test
 
       # The domain package must stay pure. If it acquired I/O, it gets slow.
       # This is a cheap proxy for "rule 3.1 still holds".
       - name: Domain tests must run in under 5 seconds
+        if: steps.workspace.outputs.present == 'true'
         run: |
           START=$(date +%s%N)
           npm test -w packages/domain

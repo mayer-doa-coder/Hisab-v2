@@ -60,6 +60,11 @@ Considered: v1's global patch of `Text.render` / `TextInput.render` / `Alert.ale
 Chose: design-system wrapper plus explicit `t()`.
 Because: the patch ran a translation lookup on every string in every render pass, broke `React.memo`, made components untestable in isolation, depended on a non-public RN API, and could silently corrupt user-entered data when a customer or product name matched a translation key.
 
+## 2026-08-02 — Branch protection turns on after the constitution commit, not before
+Considered: direct-to-main throughout Phase 0 (no active second collaborator yet); branch+PR from the very first commit; branch+PR starting once package.json exists.
+Chose: the constitution bundle (AGENTS.md, CLAUDE.md, CONTRIBUTING.md, docs/, .github/) goes directly to main; branch protection is enabled immediately after; every commit from the workspace skeleton onward — including solo Phase 0 infrastructure work — goes through a branch and a self-merged PR.
+Because: at the constitution commit there is no package.json yet, so ci.yml's `npm ci` step cannot succeed on any branch — gating a commit behind a check that structurally cannot pass isn't a safeguard. Once package.json exists, CI can run, and it should gate the merge rather than audit it afterward; this matters especially in Phase 0, which is largely about proving CI catches real violations. Flagged as an unresolved ambiguity during Claude Code orientation (CONTRIBUTING.md previously stated the branch workflow with no stated exception).
+
 ---
 
 ## Template — copy this for new entries

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+.expo/
+*.log
+.env
+.env.*
+!.env.example
+
+# Android release artefacts (size-gate.yml builds these; they don't belong in git)
+*.apk
+*.aab
+
+# Editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json

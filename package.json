@@ -1,0 +1,27 @@
+{
+  "name": "hisab-v2",
+  "private": true,
+  "type": "module",
+  "description": "Offline-first mobile ledger for small general stores in Bangladesh. See AGENTS.md.",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/domain",
+    "apps/mobile",
+    "server"
+  ],
+  "scripts": {
+    "test": "npm test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "build:apk": "npm run build:apk -w apps/mobile",
+    "size:check": "node scripts/size-check.js",
+    "db:reset": "npm run db:reset -w apps/mobile"
+  },
+  "devDependencies": {
+    "eslint": "^9.19.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.21.0"
+  }
+}

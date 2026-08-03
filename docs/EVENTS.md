@@ -308,7 +308,7 @@ Example: two devices are offline and both record a ৳500 payment against a ৳5
 
 ## 9. Adding a new event type
 
-Checklist. All six, in one PR:
+Checklist. All six, in one PR. (This checklist is duplicated as a single checkbox in `.github/pull_request_template.md` — that's the mechanical enforcement; this is the authoritative detail.)
 
 1. Entry in this file, with the payload interface and the rationale
 2. Zod schema in `packages/domain/src/events.ts`

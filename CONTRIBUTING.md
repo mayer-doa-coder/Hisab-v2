@@ -75,6 +75,38 @@ git rebase origin/main
 git push --force-with-lease
 ```
 
+### When direct-to-`main` is allowed, and when it isn't
+
+This is stated explicitly because "always branch" above has exactly one exception, and leaving it unstated is worse than either extreme — an agent or a new contributor should not have to guess.
+
+**The one exception: the very first commit.** The constitution bundle — `AGENTS.md`, `CLAUDE.md`, this file, `docs/`, `.github/` — goes directly to `main`. At that point there is no `package.json` anywhere in the repo, so `ci.yml`'s `npm ci` step cannot succeed regardless of which branch it runs on. Gating a commit behind a check that is structurally incapable of passing yet isn't a safeguard, it's friction. Push it directly.
+
+**Turn on branch protection immediately after that commit, before anything else:**
+
+```
+GitHub → Settings → Branches → Add rule for `main`:
+  ☑ Require a pull request before merging
+  ☑ Require status checks to pass (ci)
+  ☑ Require branches to be up to date before merging
+  ☐ Do NOT require approvals — two people, that's a bottleneck not a safeguard
+```
+
+**From the workspace skeleton onward, everything goes through a branch and a PR — including solo work.** Once `package.json` exists, CI can actually run, and from that point two things are true regardless of whether anyone else is editing concurrently:
+
+1. It builds the `a/*` / `b/*` habit before Phase 1 makes it load-bearing for avoiding conflicts.
+2. **CI should gate the merge, not audit it afterward.** Much of Phase 0 is specifically about proving CI catches real violations (`AGENTS.md` §3, `docs/EVENTS.md` §9). Push straight to `main` and a failing check means `main` was red until you noticed and fixed it. A solo PR — branch, push, open PR, wait for CI, self-merge once green, no approval required — costs one extra command and means `main` is never red.
+
+```bash
+git checkout -b a/workspace-skeleton
+# ...work, commit...
+git push -u origin a/workspace-skeleton
+gh pr create --fill
+# wait for CI to go green, then:
+gh pr merge --squash
+```
+
+This applies even when B isn't actively committing yet (e.g., during Phase 0 while B is doing field visits). The branch+PR habit and the CI-gates-the-merge property are both worth having from the first feature commit, not from whenever the second person happens to start typing.
+
 **Rules:**
 
 - **Merge to `main` at least once a day.** A branch that lives a week will conflict no matter how cleanly the directories are divided, because refactors happen.

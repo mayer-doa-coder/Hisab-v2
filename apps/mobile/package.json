@@ -1,0 +1,6 @@
+{
+  "name": "hisab-mobile",
+  "version": "0.0.0",
+  "private": true,
+  "description": "React Native / Expo client. Adding expo, react-native, and navigation deps is a separate PR — each needs the AGENTS.md §3.4 cost justification before it lands."
+}

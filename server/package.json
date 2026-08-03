@@ -1,0 +1,8 @@
+{
+  "name": "hisab-server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Node server: auth, event ingest/sync endpoints, third-party service calls. See AGENTS.md §4.4.",
+  "type": "module",
+  "main": "src/index.ts"
+}

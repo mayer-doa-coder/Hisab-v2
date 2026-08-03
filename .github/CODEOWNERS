@@ -1,0 +1,48 @@
+# CODEOWNERS — mechanical enforcement of the two-person ownership split
+#
+# @mayer-doa-coder = Tawhidul Hasan, @paraffinic0doomer = Md. Saif Ahmed Shejan
+#
+# This file exists so ownership is enforced by the platform rather than by memory.
+# It is the single most effective anti-merge-conflict measure in the repo: if a PR
+# requests review from BOTH owners, that PR is touching both halves and should
+# almost certainly be split into two.
+#
+# Note: with only two people we do NOT require approvals to merge (that is a
+# bottleneck, not a safeguard). CODEOWNERS is used here for notification and
+# signal, not as a merge gate. See CONTRIBUTING.md.
+
+# ---- Default ---------------------------------------------------------------
+*                                   @mayer-doa-coder
+
+# ---- A: Core & Data --------------------------------------------------------
+/packages/domain/                   @mayer-doa-coder
+/apps/mobile/src/data/              @mayer-doa-coder
+/apps/mobile/src/sync/              @mayer-doa-coder
+/apps/mobile/src/security/          @mayer-doa-coder
+/apps/mobile/app.json               @mayer-doa-coder
+/apps/mobile/package.json           @mayer-doa-coder
+/server/                            @mayer-doa-coder
+/.github/workflows/                 @mayer-doa-coder
+/package.json                       @mayer-doa-coder
+/package-lock.json                  @mayer-doa-coder
+/docs/EVENTS.md                     @mayer-doa-coder
+
+# ---- B: Interface & Field --------------------------------------------------
+/apps/mobile/src/ui/                @paraffinic0doomer
+/apps/mobile/src/screens/           @paraffinic0doomer
+/apps/mobile/src/navigation/        @paraffinic0doomer
+/apps/mobile/src/i18n/              @paraffinic0doomer
+/apps/mobile/src/search/            @paraffinic0doomer
+/research/                          @paraffinic0doomer
+/docs/UI_SPEC.md                    @paraffinic0doomer
+
+# ---- SHARED: changing these requires BOTH people to agree ------------------
+# The contract between A's world and B's world. Written once, together, in
+# Phase 0. Changed only by agreement.
+/packages/domain/src/types.ts       @mayer-doa-coder @paraffinic0doomer
+/packages/domain/src/index.ts       @mayer-doa-coder @paraffinic0doomer
+/apps/mobile/src/viewmodels/        @mayer-doa-coder @paraffinic0doomer
+/docs/DECISIONS.md                  @mayer-doa-coder @paraffinic0doomer
+/AGENTS.md                          @mayer-doa-coder @paraffinic0doomer
+/CLAUDE.md                          @mayer-doa-coder @paraffinic0doomer
+/README.md                          @mayer-doa-coder @paraffinic0doomer

@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+      - run: npm ci
+
+      - name: Typecheck (strict, all workspaces)
+        run: npm run typecheck
+
+      - name: Lint (zero warnings)
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      # The domain package must stay pure. If it acquired I/O, it gets slow.
+      # This is a cheap proxy for "rule 3.1 still holds".
+      - name: Domain tests must run in under 5 seconds
+        run: |
+          START=$(date +%s%N)
+          npm test -w packages/domain
+          END=$(date +%s%N)
+          MS=$(( (END - START) / 1000000 ))
+          echo "domain tests: ${MS}ms"
+          if [ "$MS" -gt 5000 ]; then
+            echo "::error::Domain tests took ${MS}ms (limit 5000ms). Something acquired I/O — see AGENTS.md §3.1"
+            exit 1
+          fi
+
+  domain-purity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Domain layer must not import the platform
+        run: |
+          if grep -rEn "from ['\"](react|react-native|expo|expo-.*|axios|node:fs)" packages/domain/src/; then
+            echo "::error::packages/domain must have zero I/O — see AGENTS.md §3.1"
+            exit 1
+          fi
+          echo "domain layer is clean"
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Only EXPO_PUBLIC_API_BASE_URL is allowed
+        run: |
+          FOUND=$(grep -rEoh "EXPO_PUBLIC_[A-Z_]+" apps/ 2>/dev/null | sort -u | grep -v "^EXPO_PUBLIC_API_BASE_URL$" || true)
+          if [ -n "$FOUND" ]; then
+            echo "::error::Disallowed EXPO_PUBLIC_* variable(s): $FOUND"
+            echo "Any EXPO_PUBLIC_* value is inlined into the shipped JS bundle. See docs/SECURITY.md §3."
+            exit 1
+          fi
+          echo "no leaked public env vars"

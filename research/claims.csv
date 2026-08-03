@@ -1,0 +1,7 @@
+claim_id,claim_text,where_used,evidence_type,evidence_path,verified_by,verified_date,status
+C001,"Median baki entry amount across observed shops is X taka","Introduction; Section 3",field_notes,research/field-notes/,,,TODO
+C002,"Credit entry completes in under 8 seconds median across N shopkeepers","Section 5 Evaluation",experiment_log,research/experiments/entry-timing.csv,,,TODO
+C003,"Dataset contains N utterances from M shopkeepers across K districts","Abstract; Section 4",dataset_stats,research/dataset/stats.json,,,TODO
+C004,"BanglishBERT achieves F1 = X on intent classification","Table 2",experiment_log,research/experiments/baselines/,,,TODO
+C005,"Croston beats naive by X MASE on pilot SKU data","Table 4",experiment_log,research/experiments/forecast/,,,TODO
+C006,"On-device inference latency is X ms on <device model>","Table 5",benchmark,research/experiments/latency.csv,,,TODO

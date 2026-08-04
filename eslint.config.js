@@ -4,7 +4,24 @@
 // specific bug in Hisab v1. Do not add eslint-disable comments to work around
 // these; if a rule genuinely blocks correct code, the design is wrong — raise it.
 
+import { fileURLToPath } from 'node:url';
 import tseslint from 'typescript-eslint';
+
+const tsconfigRootDir = fileURLToPath(new URL('.', import.meta.url));
+
+// Shared between the two domain no-restricted-syntax blocks below (money.ts
+// gets these too, just not the toFixed guard) so the two blocks never set the
+// same rule key for an overlapping file — flat config replaces, not merges,
+// same-key rules across matching config objects.
+const domainSyntaxGuards = [
+  { selector: "NewExpression[callee.name='Date'][arguments.length=0]",
+    message: 'AGENTS.md §3.1: pass time in as a parameter. Folds must be deterministic.' },
+  { selector: "CallExpression[callee.name='parseFloat']",
+    message: 'AGENTS.md §3.2: money is an integer count of poisha. parseFloat is never correct here.' },
+];
+
+const toFixedGuard = { selector: "MemberExpression[property.name='toFixed']",
+  message: 'AGENTS.md §3.2: formatting belongs at the render boundary via toDisplayTaka(), not in domain logic.' };
 
 export default tseslint.config(
   // ---------------------------------------------------------------------------
@@ -37,15 +54,24 @@ export default tseslint.config(
       'no-restricted-properties': ['error',
         { object: 'Date', property: 'now', message: 'AGENTS.md §3.1: pass time in as a parameter. Folds must be deterministic.' },
       ],
-      'no-restricted-syntax': ['error',
-        { selector: "NewExpression[callee.name='Date'][arguments.length=0]",
-          message: 'AGENTS.md §3.1: pass time in as a parameter. Folds must be deterministic.' },
-        // AGENTS.md §3.2 — money is integer poisha. No float ops on it.
-        { selector: "CallExpression[callee.name='parseFloat']",
-          message: 'AGENTS.md §3.2: money is an integer count of poisha. parseFloat is never correct here.' },
-        { selector: "MemberExpression[property.name='toFixed']",
-          message: 'AGENTS.md §3.2: formatting belongs at the render boundary via toDisplayTaka(), not in domain logic.' },
-      ],
+      'no-restricted-syntax': ['error', ...domainSyntaxGuards],
+    },
+  },
+
+  // ---------------------------------------------------------------------------
+  // AGENTS.md §3.2 — formatting boundary.
+  // toDisplayTaka() in money.ts is the one sanctioned place a display string is
+  // produced from Poisha. Everywhere else in domain, .toFixed() means formatting
+  // logic has leaked out of the render boundary. money.ts keeps the Date/
+  // parseFloat guards from the block above unchanged, since this block excludes
+  // it and flat config only replaces a same-named rule for files where a later
+  // block actually matches.
+  // ---------------------------------------------------------------------------
+  {
+    files: ['packages/domain/**/*.ts'],
+    ignores: ['packages/domain/src/money.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', ...domainSyntaxGuards, toFixedGuard],
     },
   },
 
@@ -57,7 +83,7 @@ export default tseslint.config(
   // resolution strategies, and three validate*Consistency functions.
   // ---------------------------------------------------------------------------
   {
-    files: ['apps/mobile/src/data/**/*.ts', 'server/src/db/**/*.ts'],
+    files: ['apps/mobile/src/data/**/*.ts', 'server/src/**/*.ts'],
     rules: {
       'no-restricted-syntax': ['error',
         { selector: "Literal[value=/UPDATE\\s+events/i]",
@@ -117,6 +143,16 @@ export default tseslint.config(
   // ---------------------------------------------------------------------------
   {
     files: ['**/*.{ts,tsx}'],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir,
+      },
+    },
+    plugins: {
+      '@typescript-eslint': tseslint.plugin,
+    },
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/ban-ts-comment': ['error', {

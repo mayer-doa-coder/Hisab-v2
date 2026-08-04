@@ -2,7 +2,7 @@ name: APK size gate
 
 on:
   pull_request:
-    paths: ['apps/mobile/**', 'packages/**', 'package-lock.json']
+    paths: ['apps/mobile/**', 'packages/**', 'package-lock.json', '.github/workflows/size-gate.yml']
 
 env:
   # The budget. Raising this number requires an entry in docs/DECISIONS.md
@@ -27,8 +27,15 @@ jobs:
 
       - name: Enforce budget
         run: |
-          APK=$(find . -name "*arm64-v8a*release*.apk" | head -1)
-          if [ -z "$APK" ]; then echo "::error::no APK produced"; exit 1; fi
+          MATCHES=$(find . -name "*arm64-v8a*release*.apk" -not -path "*/node_modules/*")
+          COUNT=$(echo "$MATCHES" | grep -c . || true)
+          if [ "$COUNT" -eq 0 ]; then echo "::error::no APK produced"; exit 1; fi
+          if [ "$COUNT" -gt 1 ]; then
+            echo "::error::ambiguous — multiple matching APKs found:"
+            echo "$MATCHES"
+            exit 1
+          fi
+          APK="$MATCHES"
           SIZE=$(stat -c%s "$APK")
           LIMIT=$(( LIMIT_MB * 1024 * 1024 ))
           MB=$(( SIZE / 1024 / 1024 ))

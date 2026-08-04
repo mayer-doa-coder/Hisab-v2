@@ -1,6 +1,23 @@
 {
   "name": "hisab-mobile",
-  "version": "0.0.0",
-  "private": true,
-  "description": "React Native / Expo client. Adding expo, react-native, and navigation deps is a separate PR — each needs the AGENTS.md §3.4 cost justification before it lands."
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "expo": "~57.0.9",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.2"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "build:apk": "node scripts/build-apk.mjs"
+  },
+  "private": true
 }

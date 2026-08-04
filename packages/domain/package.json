@@ -6,6 +6,7 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'packages/domain: no tests yet (Step 2 has not started)' && exit 0"
   }
 }

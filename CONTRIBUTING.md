@@ -36,8 +36,10 @@ The viewmodel boundary is what makes parallel work safe:
 export interface CustomerRowVM {
   id: string;
   displayName: string;             // the nickname
+  phone: string | null;            // so src/search/ can match on it
   balanceDisplay: string;          // PRE-FORMATTED — B does no money arithmetic
-  daysSinceActivity: number;
+  balancePoisha: number;           // keypad prefill only — see AGENTS.md §3.2
+  daysSinceActivityDisplay: string;// PRE-FORMATTED — numeral script is a setting
   needsAttention: boolean;         // computed by domain, rendered by UI
   attentionReason: string | null;  // plain language: "৪৫ দিন ধরে কিছু দেননি"
   syncPending: boolean;
@@ -45,6 +47,11 @@ export interface CustomerRowVM {
 ```
 
 **B never performs arithmetic on money and never decides who is overdue.** Those are domain concerns, already tested. B renders strings.
+
+Two things make that work in practice, and both are part of the contract:
+
+- **The domain never writes Bengali.** It decides *what* to say as a structured `AttentionReason`; B turns that into a sentence through `ViewModelFormatter`, which B implements over `t()` and the numeral-script setting. So the domain owns "who is overdue" and B owns "how it reads" — neither reaches into the other.
+- **Every elapsed-time field needs a clock the fold does not have.** `fold(events)` cannot call `Date.now()` (`AGENTS.md` §3.1), so `now` is passed to the viewmodel builder explicitly. Anything in a viewmodel that depends on how much time has passed is a function of that argument, not of the log.
 
 ---
 

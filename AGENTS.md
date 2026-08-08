@@ -71,9 +71,12 @@ It contains pure functions only:
 fold(events: Event[]): LedgerState
 applyCredit(state: LedgerState, cmd: CreditCommand): Event[] | DomainError
 applyPayment(state: LedgerState, cmd: PaymentCommand): Event[] | DomainError
-detectAnomalies(state: LedgerState): Anomaly[]
+applyCorrection(state: LedgerState, cmd: CorrectionCommand): Event[] | DomainError
+detectAnomalies(state: LedgerState, events: Event[]): Anomaly[]
 reorderPoint(history: DailySales[], leadTimeDays: number, serviceLevel: number): number
 ```
+
+`applyCorrection` was missing from this list; `docs/BUILD_PLAN.md` Phase 1 has always named it. It emits `ENTRY_VOIDED`. `detectAnomalies` takes the event slice as a second argument rather than reading it off `LedgerState`, so the caller decides how much of the log is in memory — see §4.2.
 
 Why: it makes every financial rule testable in milliseconds without a device, a database, or a network; it lets the mobile app and the Node server share one implementation instead of two that drift; and it makes a future port to Kotlin a mechanical translation rather than a rewrite.
 
@@ -89,7 +92,9 @@ export type Poisha = number & { readonly __brand: 'Poisha' };
 - Every money-bearing field name ends in `_poisha`.
 - Arithmetic on money happens **only** inside `packages/domain/src/money.ts`.
 - Floating point never touches a monetary value. No `parseFloat`, no `*`, no `/` outside `money.ts`.
-- Conversion to a display string happens only at the render boundary, via `toDisplayTaka()`.
+- Conversion to a display string happens only at the render boundary, via `toDisplayTaka()`. `toDisplayTaka()` is called by the viewmodel builder, not by a screen — the domain hands B pre-formatted strings (`CONTRIBUTING.md` §2), so it needs the numeral-script setting and Indian grouping passed in. B supplies both through `ViewModelFormatter`.
+
+**The one carve-out: an amount being composed at the keypad is not yet money.** `docs/UI_SPEC.md` screen 4 has quick chips where "tap to add, tap again to add again," and screen 5 prefills the full balance into an editable field. Both require integer addition in a component, and neither is possible if §3.2 is read absolutely. So: while an amount is being entered, B may add and subtract **integer poisha** in component state. B may not divide it, may not use a float, and may not format it — formatting stays with `ViewModelFormatter`. The moment the amount becomes an event it is ledgered money again and this carve-out ends. Without this, the single most important screen in the app cannot be built without breaking a rule, which is worse than naming the exception.
 
 Why: v1 mixed `amountCents` on some models with a bare `amount` on `BakiEntry`, which is a silent 100× error waiting to happen in a system where the two flow into the same balance calculation.
 

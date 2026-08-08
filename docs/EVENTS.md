@@ -57,8 +57,11 @@ CREATE INDEX idx_events_unsynced ON events (synced_at) WHERE synced_at IS NULL;
 ## 2. Money and quantity in payloads
 
 - Every monetary field ends in `_poisha` and is an integer. 1 BDT = 100 poisha.
+- In TypeScript every `_poisha` field is typed `Poisha`, not `number` — the brand is what turns a unit mix-up into a compile error (`AGENTS.md` §3.2). The payload listings below say `Poisha` for that reason; on the wire and in SQLite it is a plain integer.
 - Every quantity field ends in `_units` or carries an explicit `unit` field.
 - Never a float. Never a formatted string.
+- **Payload fields are `snake_case`**, not `camelCase`. They are serialised straight into the `payload` JSON column and read back by both the app and the server, so they follow the database convention rather than `AGENTS.md` §6's TypeScript one. Viewmodels are `camelCase`; the boundary between the two conventions is the viewmodel builder.
+- **On an update payload, an omitted field means "leave unchanged" and an explicit `null` means "clear the value."** This applies to `CUSTOMER_RENAMED.phone` and to every optional field on `PRODUCT_UPDATED`.
 
 ---
 
@@ -102,7 +105,7 @@ Hides a customer from lists. Never deletes their history. `reason: 'REQUESTED'` 
   schema_version: 1,
   entry_id: string,
   customer_id: string,
-  amount_poisha: number,       // positive integer
+  amount_poisha: Poisha,       // positive integer
   note: string | null,
   occurred_at: number | null,  // if backdated by the user; null means "now"
 }
@@ -117,7 +120,7 @@ The single most important event in the system. Everything in the credit-entry fl
   schema_version: 1,
   entry_id: string,
   customer_id: string,
-  amount_poisha: number,       // positive integer
+  amount_poisha: Poisha,       // positive integer
   note: string | null,
   occurred_at: number | null,
 }
@@ -130,12 +133,14 @@ Note there is **no `applies_to_entry_id`.** Payments are against the running bal
 ```ts
 {
   schema_version: 1,
-  voids_event_id: string,       // the id of the CREDIT_GIVEN or PAYMENT_RECEIVED being voided
+  voids_event_id: string,       // the id of ANY event being voided
   reason: 'MISTAKE' | 'DUPLICATE' | 'DISPUTED',
 }
 ```
 
 The only way to undo anything. The original event is never removed; the fold skips events that a later `ENTRY_VOIDED` references. This is what the 10-second undo affordance emits, and what the duplicate-payment review screen emits.
+
+`voids_event_id` accepts **any** event id, not only `CREDIT_GIVEN` and `PAYMENT_RECEIVED`. It was previously worded as those two, which left `CUSTOMER_ARCHIVED` — an easy mis-tap — permanently irreversible, with no `CUSTOMER_UNARCHIVED` event to undo it and no intention to add one. Widening the target is one word here and removes a whole class of unrecoverable mistake. The fold ignores a void whose target it has not seen.
 
 Voiding is idempotent: two `ENTRY_VOIDED` events for the same target have the same effect as one. There is a property test for this.
 
@@ -153,7 +158,7 @@ Do not build these until the six core screens have been in a real shop for two w
   product_id: string,
   name: string,
   unit: 'PIECE' | 'KG' | 'GRAM' | 'LITRE' | 'ML' | 'PACKET' | 'DOZEN',
-  sale_price_poisha: number | null,
+  sale_price_poisha: Poisha | null,
   low_stock_threshold_units: number | null,
 }
 ```
@@ -165,8 +170,17 @@ Do not build these until the six core screens have been in a real shop for two w
 ### `PRODUCT_UPDATED`
 
 ```ts
-{ schema_version: 1, product_id: string, name?, unit?, sale_price_poisha?, low_stock_threshold_units? }
+{
+  schema_version: 1,
+  product_id: string,
+  name?: string,
+  unit?: 'PIECE' | 'KG' | 'GRAM' | 'LITRE' | 'ML' | 'PACKET' | 'DOZEN',
+  sale_price_poisha?: Poisha | null,
+  low_stock_threshold_units?: number | null,
+}
 ```
+
+Field types were previously elided here. Omitted means "leave unchanged"; explicit `null` clears the value (see §2).
 
 ### `PRODUCT_ARCHIVED`
 
@@ -182,11 +196,13 @@ Do not build these until the six core screens have been in a real shop for two w
   movement_id: string,
   product_id: string,
   quantity_units: number,          // positive
-  cost_price_poisha: number | null,
+  cost_price_poisha: Poisha | null,
   expiry_date: string | null,      // ISO date, on the batch not the product
   occurred_at: number | null,
 }
 ```
+
+**`expiry_date` is recorded but not currently folded.** `STOCK_SOLD` carries no reference to the batch it drew from, so the fold knows the total quantity on hand but not *which* batches remain — it cannot tell whether the earliest-expiring batch has already been sold. An `earliest_expiry` column was therefore removed from the `stock` projection in §7. Adding batch references to `STOCK_SOLD` would fix it and would also cost a tap at the counter, so it is a Phase 4 decision to make against real shop data, not now.
 
 ### `STOCK_SOLD`
 
@@ -196,7 +212,7 @@ Do not build these until the six core screens have been in a real shop for two w
   movement_id: string,
   product_id: string,
   quantity_units: number,          // positive; the fold subtracts
-  sale_price_poisha: number,
+  sale_price_poisha: Poisha,
   sale_id: string | null,          // links line items of one sale
   occurred_at: number | null,
 }
@@ -222,14 +238,16 @@ Do not build these until the six core screens have been in a real shop for two w
   schema_version: 1,
   sale_id: string,
   customer_id: string | null,      // null = walk-in cash sale
-  total_poisha: number,
+  total_poisha: Poisha,
   payment_method: 'CASH' | 'CREDIT' | 'MIXED',
-  cash_paid_poisha: number,        // remainder becomes credit
+  cash_paid_poisha: Poisha,        // remainder becomes credit
   occurred_at: number | null,
 }
 ```
 
 A `MIXED` or `CREDIT` sale emits both a `SALE_RECORDED` and a `CREDIT_GIVEN` in the same batch, sharing `occurred_at`. The domain layer produces both from one command; the UI never emits two separately.
+
+**On `total_poisha` looking like a stored computed value.** It is the sum of the sale's `STOCK_SOLD` line items, so §3.3 would normally say derive it rather than store it. It is stored deliberately: an event records what the shopkeeper and the customer *agreed at the counter*, and that agreement is a fact about the past, not a cache of a calculation. If the line items later fail to sum to it, the total is the thing that actually happened and the line items are what is wrong. The same reasoning covers `cash_paid_poisha` and the `CREDIT_GIVEN` it implies. This is the one place in the catalogue that stores a number derivable from other events, and it needs to stay the only one.
 
 ---
 
@@ -281,9 +299,13 @@ Projections are derived caches, rebuilt by replaying the log. They may be droppe
 |---|---|---|
 | `customers` | `CUSTOMER_*` | `id`, `display_name`, `phone`, `archived` |
 | `balances` | `CREDIT_GIVEN`, `PAYMENT_RECEIVED`, `ENTRY_VOIDED` | `customer_id`, `balance_poisha`, `last_activity_at` |
-| `products` | `PRODUCT_*` | `id`, `name`, `unit`, `sale_price_poisha` |
-| `stock` | `STOCK_*` | `product_id`, `quantity_units`, `earliest_expiry` |
+| `products` | `PRODUCT_*` | `id`, `name`, `unit`, `sale_price_poisha`, `low_stock_threshold_units`, `archived` |
+| `stock` | `STOCK_*` | `product_id`, `quantity_units` |
 | `daily_sales` | `STOCK_SOLD` | `product_id`, `date`, `quantity_units` — feeds the forecaster |
+
+`products` gains `archived` for the same reason `customers` has it: `PRODUCT_ARCHIVED` exists and the projection had no column to record it. `stock` loses `earliest_expiry` — see §4 `STOCK_RECEIVED` for why it is not derivable from the events as specified.
+
+**Sync state is not a projection column.** `synced_at` lives on the envelope and is device-local (§6), so two devices folding the same log legitimately disagree about what is pending. The fold exposes it as a set of ids alongside the projections rather than as a column on them, and the rebuild test compares projections only.
 
 **Rebuild test (must always pass):** drop every projection table, replay the full log, and assert the resulting state is identical to the state before the drop. This test is the guarantee that projections never become a second source of truth.
 

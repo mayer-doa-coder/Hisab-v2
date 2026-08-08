@@ -23,6 +23,24 @@ const domainSyntaxGuards = [
 const toFixedGuard = { selector: "MemberExpression[property.name='toFixed']",
   message: 'AGENTS.md §3.2: formatting belongs at the render boundary via toDisplayTaka(), not in domain logic.' };
 
+// AGENTS.md §3.2 — "arithmetic on money happens only inside money.ts". Catches
+// +, -, *, / (plain or compound-assignment) where an operand is a bare
+// identifier or object property ending in `_poisha` — the snake_case suffix
+// every event-payload and projection money field uses. Viewmodel money fields
+// are deliberately camelCase (`balanceDisplay`, and the one exception
+// `balancePoisha` for the keypad carve-out — AGENTS.md §3.2) precisely so this
+// selector does not reach across the viewmodel boundary.
+const poishaArithmeticGuard = [
+  { selector: "BinaryExpression[operator=/^[+\\-*/]$/] > Identifier[name=/_poisha$/]",
+    message: 'AGENTS.md §3.2: arithmetic on money happens only inside packages/domain/src/money.ts.' },
+  { selector: "BinaryExpression[operator=/^[+\\-*/]$/] > MemberExpression > Identifier.property[name=/_poisha$/]",
+    message: 'AGENTS.md §3.2: arithmetic on money happens only inside packages/domain/src/money.ts.' },
+  { selector: "AssignmentExpression[operator=/^[+\\-*/]=$/] > Identifier.left[name=/_poisha$/]",
+    message: 'AGENTS.md §3.2: arithmetic on money happens only inside packages/domain/src/money.ts.' },
+  { selector: "AssignmentExpression[operator=/^[+\\-*/]=$/] > MemberExpression.left > Identifier.property[name=/_poisha$/]",
+    message: 'AGENTS.md §3.2: arithmetic on money happens only inside packages/domain/src/money.ts.' },
+];
+
 export default tseslint.config(
   // ---------------------------------------------------------------------------
   // AGENTS.md §3.1 — the domain layer has ZERO I/O.
@@ -71,7 +89,7 @@ export default tseslint.config(
     files: ['packages/domain/**/*.ts'],
     ignores: ['packages/domain/src/money.ts'],
     rules: {
-      'no-restricted-syntax': ['error', ...domainSyntaxGuards, toFixedGuard],
+      'no-restricted-syntax': ['error', ...domainSyntaxGuards, toFixedGuard, ...poishaArithmeticGuard],
     },
   },
 
@@ -90,6 +108,7 @@ export default tseslint.config(
           message: 'AGENTS.md §3.3: the events table is append-only. A correction is an ENTRY_VOIDED event.' },
         { selector: "Literal[value=/DELETE\\s+FROM\\s+events/i]",
           message: 'AGENTS.md §3.3: the events table is append-only. Nothing is ever destroyed.' },
+        ...poishaArithmeticGuard,
       ],
     },
   },
@@ -111,6 +130,7 @@ export default tseslint.config(
           message: 'AGENTS.md §4.1: never patch a React Native prototype. This was the single worst bug in v1.' },
         { selector: "AssignmentExpression[left.object.name='Alert'][left.property.name='alert']",
           message: 'AGENTS.md §4.1: never patch Alert.alert.' },
+        ...poishaArithmeticGuard,
       ],
       'no-restricted-imports': ['error', {
         paths: [

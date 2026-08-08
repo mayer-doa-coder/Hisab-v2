@@ -7,6 +7,6 @@
   "main": "src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "echo 'packages/domain: no tests yet (Step 2 has not started)' && exit 0"
+    "test": "tsc -p test/tsconfig.json && node --test test/*.test.ts"
   }
 }

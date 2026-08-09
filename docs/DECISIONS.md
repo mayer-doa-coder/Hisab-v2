@@ -129,6 +129,11 @@ Because: the 25 MB per-ABI gate is meaningless without knowing what an empty app
 
 ## Template — copy this for new entries
 
+## 2026-08-09 — zod added as a real dependency of packages/domain
+Considered: hand-roll validation functions instead (no new dependency); declare zod properly as a devDependency-only tool (wrong — it validates on-device at write time per EVENTS.md §1 invariant 6, so it ships in the mobile bundle, not dev-only); declare it as a real dependency with a measured cost.
+Chose: declared in `packages/domain/package.json` as `"zod": "^3.25.76"` — the version already resolved in the lockfile, previously present only by accident as a transitive dependency of Expo's own CLI tooling (`expo-internal`), not usable as a real dependency of this project until declared explicitly.
+Because: `docs/DECISIONS.md`'s 2026-08-08 entry had already settled that Zod schemas land in `events.ts` in Phase 1 — what was still open was the mechanics of depending on it honestly. Measured via `esbuild --bundle --minify` over a representative slice of real usage (a handful of object schemas, an enum, a discriminated union — not the whole library): **~60KB minified, ~14KB gzipped**. This is an estimate from a bundler+minifier run, not an actual compiled-APK before/after diff (that would need a full native build and wiring zod into `apps/mobile`, both out of scope for this step) — `[VERIFY]` against a real `size:check` diff once `apps/mobile` actually imports the domain package. Against the 20.08 MB empty-app baseline (2026-08-08 entry) with ~4.9 MB of headroom, ~14KB gzipped is a small fraction of the budget and not a blocker, but the real number should be confirmed once there's something in `apps/mobile` to measure against.
+
 ## YYYY-MM-DD — <title>
 Considered:
 Chose:

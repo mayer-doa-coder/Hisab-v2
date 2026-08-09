@@ -14,15 +14,15 @@
 // Zero I/O (AGENTS.md §3.1).
 
 // -----------------------------------------------------------------------------
-// Functions. Uncomment each line as the module lands — fold.ts and commands.ts
-// are the rest of Step 2 and are not written yet. The signatures they must
-// satisfy are `Fold`, `ApplyCredit`, `ApplyPayment`, `ApplyCorrection` and
-// `DetectAnomalies` in types.ts, so this list is already agreed.
+// Functions. All four modules now exist (Steps 3-5). Each export's signature
+// is checked against `Fold`, `ApplyCredit`, `ApplyPayment`, `ApplyCorrection`
+// and `DetectAnomalies` below — that list was agreed in Step 2, so adding
+// these exports is not a new decision.
 // -----------------------------------------------------------------------------
 
-// export { fold } from './fold';
-// export { applyCredit, applyPayment, applyCorrection } from './commands';
-// export { detectAnomalies } from './anomalies';
+export { fold } from './fold';
+export { applyCredit, applyPayment, applyCorrection } from './commands';
+export { detectAnomalies } from './anomalies';
 
 // -----------------------------------------------------------------------------
 // The contract types. types.ts is the authority on shape; docs/EVENTS.md is the

@@ -12,4 +12,13 @@ export const common: CommonStrings = {
   languageLabel: 'Language',
   save: 'Save',
   cancel: 'Cancel',
+
+  // PIN entry (Step 10). Added in the same commit as bn/common.ts —
+  // AGENTS.md §6: "Both bn and en keys are added in the same commit."
+  pinPrompt: 'Enter PIN',
+  pinSetPrompt: 'Choose a PIN',
+  pinConfirmPrompt: 'Enter the PIN again',
+  pinMismatch: "The two PINs didn't match",
+  pinIncorrect: 'Incorrect PIN',
+  pinLocked: 'Try again in a moment',
 };

@@ -4,5 +4,27 @@
   "private": true,
   "description": "Node server: auth, event ingest/sync endpoints, third-party service calls. See AGENTS.md §4.4.",
   "type": "module",
-  "main": "src/index.ts"
+  "main": "src/index.ts",
+  "dependencies": {
+    "@hisab/domain": "*",
+    "pg": "^8.13.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/pg": "^8.11.10",
+    "@types/sql.js": "^1.4.11",
+    "sql.js": "^1.13.0",
+    "typescript": "^5.7.3"
+  },
+  "scripts": {
+    "pretypecheck": "npm run build --prefix ../packages/domain",
+    "typecheck": "tsc --noEmit",
+    "pretest": "npm run build --prefix ../packages/domain",
+    "test": "tsc -p test/tsconfig.json && node test/fix-dist-extensions.mjs && node --test --test-concurrency=1 dist/server/test/*.test.js",
+    "test:ci": "tsc -p test/tsconfig.json && node test/fix-dist-extensions.mjs && node --test --test-concurrency=1 --test-reporter=tap dist/server/test/*.test.js",
+    "build": "tsc -p tsconfig.build.json && node test/fix-dist-extensions.mjs",
+    "prestart": "npm run build",
+    "start": "node dist/src/index.js"
+  }
 }

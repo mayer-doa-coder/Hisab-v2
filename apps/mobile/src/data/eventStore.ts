@@ -30,6 +30,22 @@ interface EventRow extends SqlRow {
   synced_at: number | null;
 }
 
+/**
+ * `synced_at` is DERIVED, never read straight off the events row.
+ *
+ * `events.synced_at` is written at INSERT time only — null for a local write,
+ * the server's `received_at` for an event pulled from the server. The
+ * transition "a local event has now been pushed" lives in the device-local
+ * `sync_state` table, because the events table is INSERT-only (EVENTS.md §1
+ * invariant 1) and an `UPDATE events SET synced_at` is both forbidden by that
+ * invariant and blocked by eslint.config.js. COALESCE collapses the two into
+ * one effective value here, in one place. See schema.ts and DECISIONS.md
+ * 2026-08-15.
+ */
+const EVENT_COLUMNS = `e.id, e.device_id, e.seq, e.hlc, e.shop_id, e.type, e.payload,
+       e.created_at, COALESCE(e.synced_at, s.synced_at) AS synced_at`;
+const EVENT_SOURCE = 'FROM events e LEFT JOIN sync_state s ON s.event_id = e.id';
+
 function rowToEvent(row: EventRow): AnyEvent {
   return {
     id: row.id,
@@ -64,10 +80,43 @@ export interface EventStoreConfig {
   readonly now?: () => number;
 }
 
+/** One event that arrived from the server, envelope intact. */
+export interface RemoteEvent {
+  readonly id: string;
+  readonly device_id: string;
+  readonly seq: number;
+  readonly hlc: string;
+  readonly shop_id: string;
+  readonly type: string;
+  readonly payload: unknown;
+  readonly created_at: number;
+  readonly received_at: number;
+}
+
+export interface MergeResult {
+  readonly inserted: number;
+  /** Already present locally — the normal case for this device's own events coming back. */
+  readonly duplicates: number;
+  readonly rejected: readonly ValidationError[];
+}
+
 export interface EventStore {
   append(type: EventType, payload: unknown): Promise<AnyEvent | ValidationError>;
   since(seq: number): Promise<AnyEvent[]>;
   rebuildProjections(): Promise<void>;
+
+  // ---- sync (Step 10) -------------------------------------------------------
+  /** Every event this device holds that the server has not confirmed. */
+  unsynced(): Promise<AnyEvent[]>;
+  /** Records that the server now holds these ids. Writes sync_state, never UPDATEs events. */
+  markPushed(ids: readonly string[], syncedAt: number): Promise<void>;
+  /** Inserts remote events verbatim, idempotently, and re-folds what they touch. */
+  merge(events: readonly RemoteEvent[]): Promise<MergeResult>;
+  /** Highest server_seq merged so far; 0 if this device has never pulled. */
+  getCursor(): Promise<number>;
+  setCursor(serverSeq: number): Promise<void>;
+  /** Every event, for a full fold. Used by the convergence test and by rebuilds. */
+  allEvents(): Promise<AnyEvent[]>;
 }
 
 export function createEventStore(config: EventStoreConfig): EventStore {
@@ -108,9 +157,9 @@ export function createEventStore(config: EventStoreConfig): EventStore {
   /** All events touching one customer: direct references plus ENTRY_VOIDEDs targeting them. */
   async function getEventsForCustomer(customerId: string): Promise<AnyEvent[]> {
     const rows = await db.getAllAsync<EventRow>(
-      `SELECT * FROM events
-       WHERE json_extract(payload, '$.customer_id') = ?
-          OR (type = 'ENTRY_VOIDED' AND json_extract(payload, '$.voids_event_id') IN (
+      `SELECT ${EVENT_COLUMNS} ${EVENT_SOURCE}
+       WHERE json_extract(e.payload, '$.customer_id') = ?
+          OR (e.type = 'ENTRY_VOIDED' AND json_extract(e.payload, '$.voids_event_id') IN (
                 SELECT id FROM events WHERE json_extract(payload, '$.customer_id') = ?
               ))`,
       [customerId, customerId],
@@ -209,17 +258,144 @@ export function createEventStore(config: EventStoreConfig): EventStore {
 
     async since(seq) {
       const rows = await db.getAllAsync<EventRow>(
-        'SELECT * FROM events WHERE device_id = ? AND seq > ? ORDER BY seq ASC',
+        `SELECT ${EVENT_COLUMNS} ${EVENT_SOURCE} WHERE e.device_id = ? AND e.seq > ? ORDER BY e.seq ASC`,
         [deviceId, seq],
       );
       return rows.map(rowToEvent);
+    },
+
+    async allEvents() {
+      const rows = await db.getAllAsync<EventRow>(`SELECT ${EVENT_COLUMNS} ${EVENT_SOURCE}`, []);
+      return rows.map(rowToEvent);
+    },
+
+    async unsynced() {
+      // Both halves of the derived value matter here: `e.synced_at IS NULL`
+      // excludes events that arrived from the server (already there by
+      // definition), and the missing sync_state row is what marks a local
+      // write as still pending.
+      const rows = await db.getAllAsync<EventRow>(
+        `SELECT ${EVENT_COLUMNS} ${EVENT_SOURCE}
+         WHERE e.synced_at IS NULL AND s.event_id IS NULL
+         ORDER BY e.hlc ASC, e.device_id ASC`,
+        [],
+      );
+      return rows.map(rowToEvent);
+    },
+
+    async markPushed(ids, syncedAt) {
+      for (const id of ids) {
+        // INSERT OR REPLACE, not UPDATE events — the ledger table is never
+        // written after the fact (EVENTS.md §1 invariant 1).
+        await db.runAsync('INSERT OR REPLACE INTO sync_state (event_id, synced_at) VALUES (?, ?)', [
+          id,
+          syncedAt,
+        ]);
+      }
+    },
+
+    async merge(remoteEvents) {
+      const rejected: ValidationError[] = [];
+      const touchedCustomers = new Set<string>();
+      let inserted = 0;
+      let duplicates = 0;
+
+      for (const remote of remoteEvents) {
+        // Validation is not reimplemented for the inbound direction:
+        // buildEvent runs the same Zod schemas as a local write, with the
+        // remote envelope passed straight through as ctx. What comes back is
+        // the peer's event reconstructed, never restamped — its id, seq, hlc
+        // and device_id are the originating device's and must stay that way,
+        // or the event would no longer be the same event.
+        const built = buildEvent(remote.type, remote.payload, {
+          event_id: remote.id,
+          device_id: remote.device_id,
+          seq: remote.seq,
+          hlc: remote.hlc,
+          shop_id: remote.shop_id,
+          created_at: remote.created_at,
+        });
+
+        if ('kind' in built) {
+          rejected.push(built);
+          continue;
+        }
+
+        const existing = await db.getAllAsync<{ id: string }>('SELECT id FROM events WHERE id = ?', [
+          remote.id,
+        ]);
+        if (existing.length > 0) {
+          // This device's own event coming back to it. Idempotent by
+          // construction: the id is the device-generated UUID (AGENTS.md §7),
+          // so no dedup table is needed on either side.
+          duplicates += 1;
+          // It has demonstrably reached the server, so record that.
+          await db.runAsync('INSERT OR REPLACE INTO sync_state (event_id, synced_at) VALUES (?, ?)', [
+            remote.id,
+            remote.received_at,
+          ]);
+          continue;
+        }
+
+        await db.runAsync(
+          `INSERT INTO events (id, device_id, seq, hlc, shop_id, type, payload, created_at, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            built.id,
+            built.device_id,
+            built.seq,
+            built.hlc,
+            built.shop_id,
+            built.type,
+            JSON.stringify(built.payload),
+            built.created_at,
+            // Written at INSERT time, which is the only time events rows are
+            // ever written. It came from the server, so it is synced by
+            // definition — no sync_state row is needed for it.
+            remote.received_at,
+          ],
+        );
+        inserted += 1;
+
+        // Move the local clock past what we have now seen, so the next event
+        // this device writes sorts after it (clock.ts's tickReceive).
+        clock.receive(built.hlc);
+
+        const customerId = await resolveCustomerId(built);
+        if (customerId !== null) touchedCustomers.add(customerId);
+      }
+
+      // Re-fold once per affected customer, after the whole batch — folding
+      // per-event would do the same work N times for a customer with N
+      // incoming events.
+      for (const customerId of touchedCustomers) {
+        await writeProjection(customerId, fold(await getEventsForCustomer(customerId)));
+      }
+
+      return { inserted, duplicates, rejected };
+    },
+
+    async getCursor() {
+      const rows = await db.getAllAsync<{ server_seq: number }>(
+        'SELECT server_seq FROM sync_cursor WHERE id = 1',
+        [],
+      );
+      return rows[0]?.server_seq ?? 0;
+    },
+
+    async setCursor(serverSeq) {
+      await db.runAsync(
+        `INSERT INTO sync_cursor (id, server_seq) VALUES (1, ?)
+         ON CONFLICT(id) DO UPDATE SET server_seq = excluded.server_seq`,
+        [serverSeq],
+      );
     },
 
     async rebuildProjections() {
       await db.runAsync('DELETE FROM customers', []);
       await db.runAsync('DELETE FROM balances', []);
 
-      const rows = await db.getAllAsync<EventRow>('SELECT * FROM events', []);
+      const rows = await db.getAllAsync<EventRow>(`SELECT ${EVENT_COLUMNS} ${EVENT_SOURCE}`, []);
       const allEvents = rows.map(rowToEvent);
       const byId = new Map(allEvents.map((e) => [e.id, e]));
 

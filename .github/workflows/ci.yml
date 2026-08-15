@@ -71,6 +71,83 @@ jobs:
           fi
           echo "domain layer is clean"
 
+  # ---------------------------------------------------------------------------
+  # BUILD_PLAN.md Phase 3: "Two-device convergence test as a CI job, not a
+  # manual check." This job is that, plus the server's own endpoint tests.
+  # Phase 3's exit criterion is this job passing.
+  # ---------------------------------------------------------------------------
+  server:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # Pinned to the major we intend to run, so an unattended Postgres
+        # release cannot break CI. Alpine for pull time.
+        image: postgres:16-alpine
+        env:
+          # NOT a secret, deliberately. This is a throwaway container on an
+          # ephemeral runner, reachable only from inside this job. Putting it
+          # in GitHub secrets would imply it protects something and would
+          # teach the wrong habit — see docs/DECISIONS.md 2026-08-15.
+          POSTGRES_USER: hisab
+          POSTGRES_PASSWORD: hisab
+          POSTGRES_DB: hisab_test
+        ports:
+          - 5432:5432
+        # Without this the job races the container's startup and fails
+        # intermittently — the worst failure mode to debug.
+        options: >-
+          --health-cmd "pg_isready -U hisab"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://hisab:hisab@localhost:5432/hisab_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - run: npm ci
+
+      # Runs the suite ONCE and asserts on the same output. `test:ci` pins
+      # --test-reporter=tap: node:test picks its reporter from TTY detection,
+      # so the default is `spec` ("ℹ pass 18") in some environments and `tap`
+      # ("# pass 18") in others. Parsing whatever the default happens to be
+      # was the first version of this step and it was wrong — verified against
+      # a real non-TTY run on Node 24, which emitted the spec format.
+      #
+      # Why assert at all: "skip when DATABASE_URL is unset" is what lets B run
+      # `npm test` at the repo root without Postgres. It is also exactly how a
+      # suite quietly stops running in CI one day. This proves it did not.
+      - name: Server tests (endpoints, auth, validation boundary, convergence)
+        run: |
+          set -o pipefail
+          npm run test:ci -w server 2>&1 | tee test-output.txt
+
+      - name: Postgres-backed tests must actually have run, not skipped
+        run: |
+          PASSED=$(awk '/^# pass /{print $3; exit}'    test-output.txt)
+          SKIPPED=$(awk '/^# skipped /{print $3; exit}' test-output.txt)
+          echo "pass=${PASSED:-0} skipped=${SKIPPED:-0}"
+          if [ -z "$PASSED" ]; then
+            echo "::error::Could not parse the TAP summary. Did the reporter or the test script change?"
+            exit 1
+          fi
+          if [ "${SKIPPED:-0}" -ne 0 ]; then
+            echo "::error::${SKIPPED} server test(s) skipped in CI. DATABASE_URL must be set — see server/test/pg.ts"
+            exit 1
+          fi
+          if [ "$PASSED" -lt 10 ]; then
+            echo "::error::Only ${PASSED} server tests passed; expected the full suite. Did the file glob break?"
+            exit 1
+          fi
+
   secrets:
     runs-on: ubuntu-latest
     steps:

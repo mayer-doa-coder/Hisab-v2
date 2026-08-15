@@ -1,0 +1,34 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The repo root, because the convergence test drives the REAL client sync
+    // layer from apps/mobile/ against the REAL server from server/src/. Both
+    // halves are A-owned (.github/CODEOWNERS), and testing the client against
+    // a mock server would prove nothing about convergence.
+    "rootDir": "../..",
+    "outDir": "../dist",
+    "declaration": false,
+    "declarationMap": false,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "types": ["node"]
+  },
+  "include": [
+    "**/*.ts",
+    "../src/**/*.ts",
+    "../../apps/mobile/src/data/**/*.ts",
+    "../../apps/mobile/src/sync/**/*.ts",
+    // Reused rather than duplicated: the same sql.js-backed Database the
+    // mobile tests use (DECISIONS.md 2026-08-10 on why sql.js and not
+    // better-sqlite3). One file, named explicitly so the rest of the mobile
+    // test suite is not dragged into this compile.
+    "../../apps/mobile/test/sqlJsDb.ts"
+  ],
+  "exclude": [
+    // Native modules that cannot load in a plain Node test process.
+    // db.expo.ts needs expo-sqlite (the test path uses sql.js instead);
+    // src/security/ needs expo-secure-store (sync/memoryTokenStore.ts
+    // exists precisely so this test does not need it).
+    "../../apps/mobile/src/data/db.expo.ts"
+  ]
+}

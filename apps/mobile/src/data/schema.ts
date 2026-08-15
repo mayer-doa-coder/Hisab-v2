@@ -76,6 +76,43 @@ export const TIMING_LOG_INDEX_SQL = `
 CREATE INDEX IF NOT EXISTS idx_timing_log_flow ON timing_log (flow, occurred_at);
 `;
 
+/**
+ * Which locally-written events have reached the server. Device-local, never
+ * synced, never folded into a projection.
+ *
+ * This table exists because EVENTS.md §1 contradicts itself: invariant 1 says
+ * the events table is "INSERT only. No UPDATE, no DELETE, no soft-delete
+ * column," while the same section gives it a `synced_at` column whose value
+ * must change from null to a timestamp when a push succeeds. eslint.config.js
+ * caught the conflict the moment sync was written (`UPDATE events` is a
+ * restricted literal in this directory), and AGENTS.md forbids disabling that
+ * guard — so the design changed instead, which is what the guard is for.
+ *
+ * `events.synced_at` is still written, but at INSERT time only: null for a
+ * local write, the server's `received_at` for an event that arrived via pull.
+ * The one genuinely mutable transition — "a local event has now been pushed" —
+ * lives here, and reads COALESCE the two so there is exactly one effective
+ * value. See docs/DECISIONS.md 2026-08-15.
+ */
+export const SYNC_STATE_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS sync_state (
+  event_id  TEXT PRIMARY KEY,
+  synced_at INTEGER NOT NULL
+);
+`;
+
+/**
+ * The pull cursor: the highest server_seq this device has merged. One row,
+ * enforced by the CHECK. Device-local for the same reason as sync_state — two
+ * devices legitimately disagree about how far they have read.
+ */
+export const SYNC_CURSOR_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS sync_cursor (
+  id         INTEGER PRIMARY KEY CHECK (id = 1),
+  server_seq INTEGER NOT NULL
+);
+`;
+
 export const ALL_SCHEMA_SQL = [
   EVENTS_TABLE_SQL,
   EVENTS_INDEXES_SQL,
@@ -83,4 +120,6 @@ export const ALL_SCHEMA_SQL = [
   BALANCES_TABLE_SQL,
   TIMING_LOG_TABLE_SQL,
   TIMING_LOG_INDEX_SQL,
+  SYNC_STATE_TABLE_SQL,
+  SYNC_CURSOR_TABLE_SQL,
 ].join('\n');

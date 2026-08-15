@@ -12,9 +12,13 @@
   "include": [
     "**/*.ts",
     "../src/data/**/*.ts",
-    "../src/viewmodels/**/*.ts"
+    "../src/viewmodels/**/*.ts",
+    "../src/sync/**/*.ts"
   ],
   "exclude": [
+    // Native modules that cannot load in a plain Node test process.
+    // src/security/ is excluded wholesale for the same reason (expo-secure-store);
+    // sync/memoryTokenStore.ts is the dependency-free stand-in.
     "../src/data/db.expo.ts"
   ]
 }

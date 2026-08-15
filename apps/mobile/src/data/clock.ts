@@ -27,14 +27,37 @@ export const ZERO_HLC_STATE: HlcState = { l: 0, c: 0 };
  * One tick of the LOCAL-event side of the algorithm:
  *   l' = max(l, physicalNow())
  *   c' = (l' == l) ? c + 1 : 0
- * The receive-side variant (merging in a remote HLC) is Step 10's job — not
- * built here, but this function's pure (state, now) -> state shape is
- * exactly what Step 10 needs to extend without reworking this file.
+ * The receive-side variant is `tickReceive` below, added in Step 10 exactly
+ * as this comment anticipated — without reworking this function.
  */
 export function tick(state: HlcState, physicalNow: number): HlcState {
   const l = Math.max(state.l, physicalNow);
   const c = l === state.l ? state.c + 1 : 0;
   return { l, c };
+}
+
+/**
+ * The RECEIVE side (Kulkarni et al., the `l_m`/`c_m` case). Called once per
+ * remote event merged in, so this device's next locally-generated hlc sorts
+ * after anything it has already seen:
+ *
+ *   l' = max(l, l_m, pt)
+ *   c' = l'==l==l_m ? max(c, c_m)+1 : l'==l ? c+1 : l'==l_m ? c_m+1 : 0
+ *
+ * Convergence does not depend on this — fold() sorts by (hlc, device_id) and
+ * is deterministic whatever the clocks did. What it buys is causality: an
+ * event this device writes *after* seeing a remote event is guaranteed to
+ * sort after it, so "I recorded this in response to that" survives the fold.
+ * Without it, a device whose physical clock lags would keep minting hlcs that
+ * sort before events it has already merged.
+ */
+export function tickReceive(state: HlcState, remote: HlcState, physicalNow: number): HlcState {
+  const l = Math.max(state.l, remote.l, physicalNow);
+
+  if (l === state.l && l === remote.l) return { l, c: Math.max(state.c, remote.c) + 1 };
+  if (l === state.l) return { l, c: state.c + 1 };
+  if (l === remote.l) return { l, c: remote.c + 1 };
+  return { l, c: 0 };
 }
 
 export function encodeHlc(state: HlcState, deviceId: string): string {
@@ -74,7 +97,26 @@ export class Clock {
     return encodeHlc(this.state, this.deviceId);
   }
 
-  /** Exposed for Step 10's receive-side merge to read/seed from. */
+  /**
+   * Merges a remote event's hlc into this clock. Returns nothing — a received
+   * event already has its own hlc and must never be restamped; this only
+   * moves the local clock forward so the NEXT local event sorts after it.
+   *
+   * A malformed remote hlc is ignored rather than thrown: it comes from an
+   * untrusted peer, the server already validated the format, and a sync pass
+   * must not be aborted by one bad row.
+   */
+  receive(remoteHlc: string): void {
+    let remote: HlcState;
+    try {
+      remote = decodeHlc(remoteHlc);
+    } catch {
+      return;
+    }
+    if (!Number.isFinite(remote.l) || !Number.isFinite(remote.c)) return;
+    this.state = tickReceive(this.state, remote, this.now());
+  }
+
   getState(): HlcState {
     return this.state;
   }

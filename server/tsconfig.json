@@ -1,10 +1,14 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
+    // Matches packages/domain and apps/mobile: `moduleResolution: "bundler"`
+    // from tsconfig.base.json, extensionless relative imports, and a
+    // fix-dist-extensions pass on the compiled output before Node runs it.
+    // This file previously specified NodeNext, which was scaffold from before
+    // any server code existed and would have made this the one workspace with
+    // a different import style.
+    "rootDir": ".",
     "outDir": "dist",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
     "types": ["node"]
   },
   "include": ["src/**/*.ts"]

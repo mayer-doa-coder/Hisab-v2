@@ -1,0 +1,25 @@
+# PREPARED, NOT RUNNABLE — see README.md. testIDs referenced below don't
+# exist yet (Record Credit is Step 8). This is the matrix row UI_SPEC.md
+# says to obsess over: interruption mid-amount-entry, after several digits
+# and a quick-chip tap.
+appId: com.hisab.mobile
+---
+- launchApp
+- tapOn: "home.creditButton"
+- tapOn: "recordCredit.customerRow.c1"   # any customer from the recent-8 list
+- tapOn:
+    id: "keypad.digit.5"
+- tapOn:
+    id: "keypad.digit.0"
+- tapOn:
+    id: "keypad.chip.100"                # quick chip: adds ৳100
+- killApp
+- launchApp
+# Expected recovery: reopens on How much?, same customer still selected,
+# amount still showing exactly what was composed (50 + the ৳100 chip) — not
+# reset to 0, not silently dropped. UI_SPEC.md: "Draft state persists to
+# disk on every field change, not on submit."
+- assertVisible: "recordCredit.customerRow.c1.selected"
+- assertVisible:
+    id: "keypad.amountDisplay"
+    text: "150"                          # exact value depends on real amount formatting Step 8 defines

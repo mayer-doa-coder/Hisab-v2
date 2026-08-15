@@ -1,0 +1,29 @@
+# gallery-smoke.yaml — proves the Maestro + backgrounding mechanism actually
+# works, against what actually exists today (the Gallery screen — App.tsx's
+# only real content; the six core screens are Step 8 and don't exist yet).
+# This is NOT a substitute for the kill-app matrix (see kill-app/*.yaml and
+# docs/TESTING_LOG.md) — it's the thing that proves the tooling itself is
+# real before pointing it at screens that don't exist.
+appId: com.hisab.mobile
+---
+- launchApp
+- assertVisible: "নকশা গ্যালারি"   # Gallery.tsx's heading, bn (default locale)
+# NOT "বাংলা" — that label is ambiguous, shared by the numeral-script
+# Bengali button (bn/common.ts numeralScriptBengali) and the language
+# toggle's Bengali button. "English" is unique and its effect (heading text
+# changes) is independently verifiable.
+- tapOn: "English"
+- assertVisible: "Design system gallery"   # en/common.ts's galleryTitle — confirms the tap had a real, checkable effect
+- killApp
+- launchApp
+# Gallery.tsx's own header comment: locale is plain React state, no
+# persistence (deliberately — this is a dev-only demo toggle, not the real
+# viewmodels/data-layer mechanism). Correct expected behavior after a kill
+# is a reset to the bn default, NOT the English state surviving — asserting
+# the opposite would be asserting a bug. This is exactly the distinction the
+# real kill-app matrix cares about for the six actual screens, which MUST
+# persist draft state (UI_SPEC.md: "Draft state persists to disk on every
+# field change") — Gallery is deliberately exempt from that requirement.
+- assertVisible: "নকশা গ্যালারি"
+
+

@@ -1,0 +1,12 @@
+# PREPARED, NOT RUNNABLE — see README.md. UI_SPEC.md: "show customer" mode
+# exists because the paper ledger is trusted for being mutually visible —
+# snapping silently back to the normal view after an interruption
+# undermines the reason this mode exists at all, more than most rows here.
+appId: com.hisab.mobile
+---
+- launchApp
+- tapOn: "customerList.row.c1"
+- tapOn: "customerDetail.showCustomerToggle"
+- killApp
+- launchApp
+- assertVisible: "customerDetail.showCustomerMode.active"

@@ -43,6 +43,19 @@ const poishaArithmeticGuard = [
 
 export default tseslint.config(
   // ---------------------------------------------------------------------------
+  // Generated build output. dist/ directories (packages/domain/dist/,
+  // apps/mobile/dist/, ...) are gitignored and produced by each workspace's
+  // own build/test compile step (Steps 4-9) — never hand-written, never a
+  // place a real violation would need fixing. Without this, ESLint's
+  // type-aware parser tries to resolve .d.ts files under dist/ against a
+  // tsconfig project that doesn't include them and fails with a parsing
+  // error, not a real lint finding.
+  // ---------------------------------------------------------------------------
+  {
+    ignores: ['**/dist/**'],
+  },
+
+  // ---------------------------------------------------------------------------
   // AGENTS.md §3.1 — the domain layer has ZERO I/O.
   // This is the single most important rule in the codebase. It is what makes the
   // financial logic testable in milliseconds, lets the app and server share one

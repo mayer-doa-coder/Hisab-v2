@@ -8,7 +8,16 @@ import fs from 'node:fs';
 
 const LIMIT_MB = 25;
 
-const found = execSync('find . -name "*arm64-v8a*release*.apk" -not -path "*/node_modules/*"', {
+// Filename no longer encodes the ABI (build-apk.mjs used to rely on Gradle's
+// `splits { abi {...} }` producing `app-arm64-v8a-release.apk`; that block
+// was lost when android/ got regenerated and replaced with
+// expo-build-properties' `buildArchs: ["arm64-v8a"]`, which restricts the
+// packaged native libraries just as effectively — verified directly by
+// unzipping the APK and checking lib/ — but names the single output plain
+// `app-release.apk`). Matching on `*release*.apk` instead of assuming an
+// ABI-named file; the actual restriction is verified at build time, not
+// inferred from a filename.
+const found = execSync('find . -name "*release*.apk" -not -path "*/node_modules/*"', {
   encoding: 'utf8',
 }).trim();
 

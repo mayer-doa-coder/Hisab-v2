@@ -1,0 +1,15 @@
+# PREPARED, NOT RUNNABLE — see README.md.
+appId: com.hisab.mobile
+---
+- launchApp
+- tapOn: "customerList.addNew"
+- tapOn: "addCustomer.nameInput"
+- inputText: "রহিম"   # partial name — one word of what might become "রহিম ভাই"
+- killApp
+- launchApp
+# Expected recovery: reopens on Add Customer with "রহিম" still in the field
+# — not blank, not silently discarded, and NOT yet written to the log
+# (nothing should be saved until the save tap).
+- assertVisible:
+    id: "addCustomer.nameInput"
+    text: "রহিম"

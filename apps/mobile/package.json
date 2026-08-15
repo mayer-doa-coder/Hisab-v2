@@ -2,16 +2,24 @@
   "name": "hisab-mobile",
   "version": "1.0.0",
   "main": "index.ts",
+  "type": "module",
   "dependencies": {
     "@expo-google-fonts/anek-bangla": "^0.4.1",
+    "@hisab/domain": "*",
     "expo": "~57.0.9",
+    "expo-crypto": "~57.0.1",
     "expo-font": "~57.0.1",
+    "expo-secure-store": "~57.0.1",
+    "expo-sqlite": "~57.0.1",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-native": "0.86.2"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "@types/sql.js": "^1.4.11",
+    "expo-build-properties": "~57.0.11",
+    "sql.js": "^1.13.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -19,8 +27,12 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "pretypecheck": "npm run build --prefix ../../packages/domain",
     "typecheck": "tsc --noEmit",
-    "build:apk": "node scripts/build-apk.mjs"
+    "pretest": "npm run build --prefix ../../packages/domain",
+    "test": "tsc -p test/tsconfig.json && node test/fix-dist-extensions.mjs && node --test dist/test/*.test.js",
+    "build:apk": "node scripts/build-apk.mjs",
+    "maestro:smoke": "maestro test maestro/gallery-smoke.yaml"
   },
   "private": true
 }

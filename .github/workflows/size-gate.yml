@@ -22,12 +22,16 @@ jobs:
         with: { distribution: temurin, java-version: '17' }
 
       - run: npm ci
-      - name: Build release APK (arm64-v8a, per-ABI split)
+      - name: Build release APK (arm64-v8a only, via expo-build-properties buildArchs)
         run: npm run build:apk
 
       - name: Enforce budget
         run: |
-          MATCHES=$(find . -name "*arm64-v8a*release*.apk" -not -path "*/node_modules/*")
+          # Filename no longer encodes the ABI — see scripts/size-check.js's
+          # comment. The single output is named app-release.apk; the ABI
+          # restriction is enforced by app.json's expo-build-properties
+          # config (buildArchs), verified by unzipping and checking lib/.
+          MATCHES=$(find . -name "*release*.apk" -not -path "*/node_modules/*")
           COUNT=$(echo "$MATCHES" | grep -c . || true)
           if [ "$COUNT" -eq 0 ]; then echo "::error::no APK produced"; exit 1; fi
           if [ "$COUNT" -gt 1 ]; then

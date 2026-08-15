@@ -1,0 +1,23 @@
+# PREPARED, NOT RUNNABLE — see README.md. The highest-stakes row in the
+# whole matrix: interruption immediately after the confirm tap, before the
+# Done screen ever renders. This is what actually proves the local write is
+# durable, not just that the UI looks right.
+appId: com.hisab.mobile
+---
+- launchApp
+- tapOn: "home.creditButton"
+- tapOn: "recordCredit.customerRow.c1"
+- tapOn:
+    id: "keypad.chip.500"
+- tapOn: "recordCredit.confirm"
+- killApp                                # killed before "Done" can possibly render
+- launchApp
+# Expected recovery: exactly one CREDIT_GIVEN event exists for ৳500 against
+# this customer — not zero (write lost), not two (write replayed on
+# resume). The customer's balance on Home/Customer list reflects it. The
+# app does not re-prompt the same amount as an unsaved draft — that would
+# mean it doesn't know the write already landed.
+- assertVisible: "home.totalOwed"
+# A real assertion here needs either a query hook exposed to Maestro or a
+# visible balance delta — Step 8 decides which; this flow names the
+# guarantee, not yet the exact UI element that proves it.

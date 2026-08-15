@@ -1,0 +1,20 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "outDir": "../dist",
+    "declaration": false,
+    "declarationMap": false,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "types": ["node"]
+  },
+  "include": [
+    "**/*.ts",
+    "../src/data/**/*.ts",
+    "../src/viewmodels/**/*.ts"
+  ],
+  "exclude": [
+    "../src/data/db.expo.ts"
+  ]
+}

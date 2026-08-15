@@ -4,12 +4,13 @@
   "private": true,
   "description": "Pure TypeScript domain layer. Zero I/O. See AGENTS.md §3.1.",
   "type": "module",
-  "main": "src/index.ts",
+  "main": "dist/src/index.js",
   "dependencies": {
     "zod": "^3.25.76"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json && node test/fix-dist-extensions.mjs",
     "test": "tsc -p test/tsconfig.json && node test/fix-dist-extensions.mjs && node --test dist/test/*.test.js"
   }
 }

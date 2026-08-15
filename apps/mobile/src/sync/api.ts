@@ -15,6 +15,8 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
+    /** Only ever machine-readable fields the server explicitly opted to expose — see HttpError.details server-side. */
+    readonly retryAfterMs: number | null = null,
   ) {
     super(`API ${status} ${code}`);
     this.name = 'ApiError';
@@ -77,16 +79,28 @@ export class Api {
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
-  async register(phone: string, pin: string): Promise<AuthTokens> {
-    return this.request<AuthTokens>('POST', '/v1/auth/register', { body: { phone, pin } });
+  async register(phone: string, pin: string, deviceFingerprint: string): Promise<AuthTokens> {
+    return this.request<AuthTokens>('POST', '/v1/auth/register', {
+      body: { phone, pin, device_fingerprint: deviceFingerprint },
+    });
   }
 
-  async login(phone: string, pin: string): Promise<AuthTokens> {
-    return this.request<AuthTokens>('POST', '/v1/auth/login', { body: { phone, pin } });
+  async login(phone: string, pin: string, deviceFingerprint: string): Promise<AuthTokens> {
+    return this.request<AuthTokens>('POST', '/v1/auth/login', {
+      body: { phone, pin, device_fingerprint: deviceFingerprint },
+    });
   }
 
-  async refresh(refreshToken: string): Promise<{ shop_id: string; access_token: string; access_expires_at: number }> {
-    return this.request('POST', '/v1/auth/refresh', { body: { refresh_token: refreshToken } });
+  /**
+   * The server ROTATES on every call (docs/SECURITY.md §4) — the response
+   * carries a NEW refresh_token, and the one passed in is now dead. The
+   * caller MUST persist the full response, not just the access token, or the
+   * next refresh will fail with INVALID_REFRESH_TOKEN.
+   */
+  async refresh(refreshToken: string, deviceFingerprint: string): Promise<AuthTokens> {
+    return this.request<AuthTokens>('POST', '/v1/auth/refresh', {
+      body: { refresh_token: refreshToken, device_fingerprint: deviceFingerprint },
+    });
   }
 
   async logout(accessToken: string): Promise<void> {
@@ -136,8 +150,8 @@ export class Api {
       });
 
       if (!response.ok) {
-        const code = await readErrorCode(response);
-        throw new ApiError(response.status, code);
+        const { code, retryAfterMs } = await readErrorBody(response);
+        throw new ApiError(response.status, code, retryAfterMs);
       }
 
       const text = await response.text();
@@ -148,16 +162,18 @@ export class Api {
   }
 }
 
-async function readErrorCode(response: Response): Promise<string> {
+async function readErrorBody(response: Response): Promise<{ code: string; retryAfterMs: number | null }> {
   try {
     const body: unknown = await response.json();
-    if (typeof body === 'object' && body !== null && 'error' in body) {
-      const code = (body as { error: unknown }).error;
-      if (typeof code === 'string') return code;
+    if (typeof body === 'object' && body !== null) {
+      const record = body as Record<string, unknown>;
+      const code = typeof record.error === 'string' ? record.error : 'UNKNOWN';
+      const retryAfterMs = typeof record.retry_after_ms === 'number' ? record.retry_after_ms : null;
+      return { code, retryAfterMs };
     }
   } catch {
     // Body was not JSON. The status alone is enough; nothing from an
     // unparseable body gets surfaced.
   }
-  return 'UNKNOWN';
+  return { code: 'UNKNOWN', retryAfterMs: null };
 }

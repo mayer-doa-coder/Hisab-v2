@@ -1,7 +1,7 @@
 // pinSession.ts — what "verify this PIN" actually means, kept out of the
 // screen so the screen stays a keypad with a callback.
 //
-// A DESIGN POINT WORTH NAMING, raised in this step's report and not yet
+// A DESIGN POINT WORTH NAMING, raised in Step 10's report and not yet
 // settled in docs/SECURITY.md §4. §4 says "PIN hashed server-side", which
 // read literally makes unlocking the app a network round-trip — forbidden by
 // AGENTS.md §3.5 ("No network call in any core flow, ever") and wrong for a
@@ -10,19 +10,17 @@
 //
 // Two different things are collapsed in that one line:
 //
-//   1. UNLOCK — offline, authoritative, device-side. From Step 11 this needs
-//      no stored hash at all: a wrong PIN yields a key that does not decrypt
-//      the SQLCipher database, which is strictly better than comparing
+//   1. UNLOCK — offline, authoritative, device-side. From the SQLCipher step
+//      this needs no stored hash at all: a wrong PIN yields a key that does
+//      not decrypt the database, which is strictly better than comparing
 //      hashes because there is nothing to compare against or steal.
 //   2. AUTHENTICATION TO THE SYNC ENDPOINT — online, server-side hash, gates
 //      token issuance. This is what server/src/auth/ implements.
 //
-// Until Step 11 there is no encrypted database, so (1) has nothing to verify
-// against locally and this step implements (2) only: the PIN is checked by
-// logging in. That means THE PIN SCREEN CURRENTLY REQUIRES CONNECTIVITY ON
-// FIRST UNLOCK, which is a real limitation of this step and disappears in
-// Step 11 when the database key becomes the check. Stated here rather than
-// hidden behind a working-looking screen.
+// Until the database is actually encrypted, (1) has nothing to verify
+// against locally, so this step still implements (2) only: the PIN is
+// checked by logging in. THE PIN SCREEN CURRENTLY REQUIRES CONNECTIVITY ON
+// FIRST UNLOCK — a real limitation, stated here rather than hidden.
 
 import type { Api, AuthTokens } from '../sync/api';
 import { ApiError } from '../sync/api';
@@ -36,39 +34,55 @@ export type PinResult =
 
 /**
  * PIN length is configurable rather than fixed, because the right answer is
- * genuinely unsettled and belongs to Step 11:
+ * genuinely unsettled and belongs to the SQLCipher step:
  *
  * Against ONLINE guessing, length barely matters — SECURITY.md §4's
  * exponential lockout is the real defence, which argues for 4 digits and one
  * less tap on a high-frequency action. Against OFFLINE brute force of a
- * PIN-derived SQLCipher key (Step 11), lockout does nothing and 6 digits is
- * still only a million candidates — weak at any KDF cost a 2 GB phone can
- * afford. The fix there is mixing a Keystore-held secret into the derivation
- * so there is nothing offline to brute-force, NOT a longer PIN.
+ * PIN-derived SQLCipher key, lockout does nothing and 6 digits is still only
+ * a million candidates — weak at any KDF cost a 2 GB phone can afford. The
+ * fix there is mixing a Keystore-held secret into the derivation, not a
+ * longer PIN.
  *
- * Default 6 until Step 11 settles it.
+ * Default 6 until that step settles it.
  */
 export const DEFAULT_PIN_LENGTH = 6;
 
 /**
  * The LOCAL half of SECURITY.md §4's "rate-limited PIN attempts... enforced
- * locally *and* server-side". The server-side half is Step 11 and is not
- * built. Deliberately a short, flat cooldown rather than exponential lockout,
- * which §4 assigns to Step 11 — this only stops a bystander thumbing through
- * candidates while the shopkeeper's back is turned.
+ * locally *and* server-side." NOT the authoritative lockout — the server
+ * (server/src/auth/lockout.ts) is authoritative and this local one exists
+ * only so a bystander thumbing through candidates while the shopkeeper's
+ * back is turned gets stopped on-device, without waiting for a round trip.
+ * Deliberately mirrors the server's shape (same threshold, same doubling)
+ * but the two are independent implementations of the same small formula —
+ * not a shared module, because one runs in node:crypto-having Node and the
+ * other in React Native with no node:crypto, and the formula itself is a
+ * few lines of arithmetic, not business logic worth cross-platform sharing
+ * (AGENTS.md §4.3 is about divergent business rules, not a duplicated
+ * constant-and-a-multiply).
  */
-export const MAX_ATTEMPTS_BEFORE_COOLDOWN = 5;
-export const COOLDOWN_MS = 30_000;
+export const LOCKOUT_THRESHOLD = 5;
+const BASE_LOCKOUT_MS = 30_000;
+const MAX_LOCKOUT_MS = 60 * 60 * 1000;
+
+export function localLockoutDurationMs(failedCount: number): number {
+  if (failedCount < LOCKOUT_THRESHOLD) return 0;
+  const exponent = failedCount - LOCKOUT_THRESHOLD;
+  return Math.min(BASE_LOCKOUT_MS * 2 ** exponent, MAX_LOCKOUT_MS);
+}
 
 export interface PinSessionConfig {
   readonly api: Api;
   readonly tokens: TokenStore;
   readonly phone: string;
+  /** apps/mobile/src/data/deviceId.ts's stable id — sent as the refresh token's bound fingerprint. */
+  readonly deviceFingerprint: string;
   readonly now?: () => number;
 }
 
 export class PinSession {
-  private failures = 0;
+  private failedCount = 0;
   private cooldownUntil = 0;
   private readonly now: () => number;
 
@@ -81,7 +95,7 @@ export class PinSession {
   }
 
   attemptsRemaining(): number {
-    return Math.max(0, MAX_ATTEMPTS_BEFORE_COOLDOWN - this.failures);
+    return Math.max(0, LOCKOUT_THRESHOLD - this.failedCount);
   }
 
   async submit(pin: string): Promise<PinResult> {
@@ -89,17 +103,30 @@ export class PinSession {
     if (remaining > 0) return { kind: 'LOCKED_OUT', retryAfterMs: remaining };
 
     try {
-      const tokens = await this.config.api.login(this.config.phone, pin);
+      const tokens = await this.config.api.login(this.config.phone, pin, this.config.deviceFingerprint);
       await this.config.tokens.set(tokens);
-      this.failures = 0;
+      this.failedCount = 0;
+      this.cooldownUntil = 0;
       return { kind: 'OK', tokens };
     } catch (error) {
+      // The server enforces its own lockout (429 TOO_MANY_ATTEMPTS) and is
+      // authoritative — the response carries retry_after_ms (HttpError's
+      // `details`, server/src/http/respond.ts), and the local cooldown is
+      // set from that exact value rather than recomputed, so the two never
+      // disagree about how long is left. Falls back to the local formula
+      // only if the server ever omits the field, which would itself be a
+      // bug worth surfacing rather than a silent guess.
+      if (error instanceof ApiError && error.status === 429) {
+        const durationMs = error.retryAfterMs ?? localLockoutDurationMs(LOCKOUT_THRESHOLD);
+        this.cooldownUntil = this.now() + durationMs;
+        return { kind: 'LOCKED_OUT', retryAfterMs: durationMs };
+      }
       if (error instanceof ApiError && error.status === 401) {
-        this.failures += 1;
-        if (this.failures >= MAX_ATTEMPTS_BEFORE_COOLDOWN) {
-          this.cooldownUntil = this.now() + COOLDOWN_MS;
-          this.failures = 0;
-          return { kind: 'LOCKED_OUT', retryAfterMs: COOLDOWN_MS };
+        this.failedCount += 1;
+        const duration = localLockoutDurationMs(this.failedCount);
+        if (duration > 0) {
+          this.cooldownUntil = this.now() + duration;
+          return { kind: 'LOCKED_OUT', retryAfterMs: duration };
         }
         return { kind: 'INCORRECT' };
       }
@@ -113,7 +140,7 @@ export class PinSession {
   /** Minimal PIN *setup*: registers the shop. No strength meter, no recovery flow. */
   async setPin(pin: string): Promise<PinResult> {
     try {
-      const tokens = await this.config.api.register(this.config.phone, pin);
+      const tokens = await this.config.api.register(this.config.phone, pin, this.config.deviceFingerprint);
       await this.config.tokens.set(tokens);
       return { kind: 'OK', tokens };
     } catch {

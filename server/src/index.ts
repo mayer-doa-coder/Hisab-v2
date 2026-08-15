@@ -4,6 +4,7 @@
 import { createPool } from './db/pool';
 import { migrate } from './db/migrate';
 import { createServer } from './server';
+import { safeErrorSummary } from './http/respond';
 
 function required(name: string): string {
   const value = process.env[name];
@@ -40,6 +41,10 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error('[server] failed to start:', error);
+  // Beyond the audit's literal ask (respond.ts's PII fix): a DATABASE_URL
+  // connection failure can carry the connection string, credentials
+  // included, in some driver error messages. safeErrorSummary strips that
+  // the same way it strips a phone number from a pg DatabaseError.
+  console.error('[server] failed to start:', safeErrorSummary(error));
   process.exitCode = 1;
 });

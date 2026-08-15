@@ -6,7 +6,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyCorrection, applyCredit, applyPayment } from '../src/commands.ts';
+import { applyArchiveCustomer, applyCorrection, applyCredit, applyPayment } from '../src/commands.ts';
 import { fold } from '../src/fold.ts';
 import type { AnyEvent, CommandContext, Poisha } from '../src/types.ts';
 
@@ -205,4 +205,83 @@ void test('applyCorrection succeeds voiding an already-voided target (double-voi
   const event = result[0];
   assert.ok(event !== undefined);
   assert.equal(event.type, 'ENTRY_VOIDED');
+});
+
+// ---------------------------------------------------------------------------
+// applyArchiveCustomer — Step 11 audit item 7. Did not exist before this
+// step; SECURITY.md §7's erasure path had no command to produce its event.
+// ---------------------------------------------------------------------------
+
+function customerAdded(id: string, name: string): AnyEvent {
+  return {
+    id,
+    device_id: 'device-a',
+    seq: 1,
+    hlc: '00000001',
+    shop_id: 'shop-1',
+    type: 'CUSTOMER_ADDED',
+    payload: { schema_version: 1, customer_id: 'c1', display_name: name, phone: null },
+    created_at: 1_700_000_000_000,
+    synced_at: null,
+  };
+}
+
+void test('applyArchiveCustomer rejects a customer the fold has never seen', () => {
+  const result = applyArchiveCustomer(fold([]), {
+    ctx: ctx(),
+    customer_id: 'ghost',
+    reason: 'REQUESTED',
+  });
+  assert.ok(!Array.isArray(result), 'archiving an unknown customer must be rejected');
+  assert.equal(result.code, 'UNKNOWN_CUSTOMER');
+});
+
+void test('applyArchiveCustomer produces a CUSTOMER_ARCHIVED event for a known customer', () => {
+  const state = fold([customerAdded('evt-1', 'রহিম ভাই')]);
+  const result = applyArchiveCustomer(state, {
+    ctx: ctx({ event_id: 'evt-archive-1' }),
+    customer_id: 'c1',
+    reason: 'REQUESTED',
+  });
+  assert.ok(Array.isArray(result), 'archiving a known customer must succeed');
+  const event = result[0];
+  assert.ok(event !== undefined);
+  assert.equal(event.type, 'CUSTOMER_ARCHIVED');
+  if (event.type === 'CUSTOMER_ARCHIVED') {
+    assert.equal(event.payload.customer_id, 'c1');
+    assert.equal(event.payload.reason, 'REQUESTED');
+  }
+
+  // The fold actually reflects it — this is the "removed from the visible
+  // list" proof at the projection level (SECURITY.md §7: "the shopkeeper
+  // must be able to find and use it" — a future list screen queries exactly
+  // this flag; see also eventStore.ts's projection-level test).
+  const archivedState = fold([...[customerAdded('evt-1', 'রহিম ভাই')], event]);
+  assert.equal(archivedState.customers.get('c1')?.archived, true);
+});
+
+void test('applyArchiveCustomer succeeds archiving an already-archived customer (idempotent, like ENTRY_VOIDED)', () => {
+  const priorEvents: AnyEvent[] = [
+    customerAdded('evt-1', 'রহিম ভাই'),
+    {
+      id: 'evt-2',
+      device_id: 'device-a',
+      seq: 2,
+      hlc: '00000002',
+      shop_id: 'shop-1',
+      type: 'CUSTOMER_ARCHIVED',
+      payload: { schema_version: 1, customer_id: 'c1', reason: 'INACTIVE' },
+      created_at: 1_700_000_001_000,
+      synced_at: null,
+    },
+  ];
+  const state = fold(priorEvents);
+  assert.equal(state.customers.get('c1')?.archived, true);
+
+  const result = applyArchiveCustomer(state, {
+    ctx: ctx({ event_id: 'evt-archive-2' }),
+    customer_id: 'c1',
+    reason: 'REQUESTED',
+  });
+  assert.ok(Array.isArray(result), 'archiving an already-archived customer must succeed, not error');
 });

@@ -58,15 +58,15 @@ void test('health touches the database', { skip: SKIP_WITHOUT_DB }, async () => 
 
 void test('login succeeds with the right PIN and fails with the wrong one', { skip: SKIP_WITHOUT_DB }, async () => {
   const client = api();
-  await client.register('01711111111', '246810');
+  await client.register('01711111111', '246810', 'device-1');
 
-  const tokens = await client.login('01711111111', '246810');
+  const tokens = await client.login('01711111111', '246810', 'device-1');
   assert.ok(tokens.access_token.length > 0);
   assert.ok(tokens.refresh_token.length > 0);
   assert.ok(tokens.access_expires_at > Date.now());
 
   await assert.rejects(
-    () => client.login('01711111111', '999999'),
+    () => client.login('01711111111', '999999', 'device-1'),
     (error: unknown) => error instanceof ApiError && error.status === 401,
   );
 });
@@ -75,16 +75,16 @@ void test('an unknown phone fails identically to a wrong PIN', { skip: SKIP_WITH
   // Not a phone-number oracle: both paths return the same code, so the
   // endpoint cannot be used to enumerate which numbers have accounts.
   await assert.rejects(
-    () => api().login('01799999999', '123456'),
+    () => api().login('01799999999', '123456', 'device-1'),
     (error: unknown) => error instanceof ApiError && error.status === 401,
   );
 });
 
 void test('refresh mints a new access token; logout revokes', { skip: SKIP_WITHOUT_DB }, async () => {
   const client = api();
-  const tokens = await client.register('01722222222', '112233');
+  const tokens = await client.register('01722222222', '112233', 'device-1');
 
-  const refreshed = await client.refresh(tokens.refresh_token);
+  const refreshed = await client.refresh(tokens.refresh_token, 'device-1');
   assert.ok(refreshed.access_token.length > 0);
   assert.equal(refreshed.shop_id, tokens.shop_id);
 
@@ -92,7 +92,7 @@ void test('refresh mints a new access token; logout revokes', { skip: SKIP_WITHO
 
   // After logout every token for the shop is gone, including the refresh one.
   await assert.rejects(
-    () => client.refresh(tokens.refresh_token),
+    () => client.refresh(tokens.refresh_token, 'device-1'),
     (error: unknown) => error instanceof ApiError && error.status === 401,
   );
 });
@@ -111,7 +111,7 @@ void test('the events endpoints reject an absent or bogus token', { skip: SKIP_W
 
 void test('push is idempotent on the device-generated id', { skip: SKIP_WITHOUT_DB }, async () => {
   const client = api();
-  const tokens = await client.register('01733333333', '445566');
+  const tokens = await client.register('01733333333', '445566', 'device-1');
   const event = envelope({ shop_id: tokens.shop_id });
 
   const first = await client.push(tokens.access_token, [event]);
@@ -130,8 +130,8 @@ void test('push is idempotent on the device-generated id', { skip: SKIP_WITHOUT_
 
 void test('a shop cannot write an event into another shop', { skip: SKIP_WITHOUT_DB }, async () => {
   const client = api();
-  const mine = await client.register('01744444444', '556677');
-  const theirs = await client.register('01755555555', '667788');
+  const mine = await client.register('01744444444', '556677', 'device-1');
+  const theirs = await client.register('01755555555', '667788', 'device-1');
 
   const result = await client.push(mine.access_token, [envelope({ shop_id: theirs.shop_id })]);
   assert.equal(result.accepted.length, 0);
@@ -140,8 +140,8 @@ void test('a shop cannot write an event into another shop', { skip: SKIP_WITHOUT
 
 void test('a shop cannot read another shop’s events', { skip: SKIP_WITHOUT_DB }, async () => {
   const client = api();
-  const mine = await client.register('01766666666', '778899');
-  const theirs = await client.register('01777777777', '889900');
+  const mine = await client.register('01766666666', '778899', 'device-1');
+  const theirs = await client.register('01777777777', '889900', 'device-1');
 
   await client.push(mine.access_token, [envelope({ shop_id: mine.shop_id })]);
 
@@ -152,7 +152,7 @@ void test('a shop cannot read another shop’s events', { skip: SKIP_WITHOUT_DB 
 
 void test('the batch cap is enforced', { skip: SKIP_WITHOUT_DB }, async () => {
   const client = api();
-  const tokens = await client.register('01788888888', '990011');
+  const tokens = await client.register('01788888888', '990011', 'device-1');
 
   const tooMany = Array.from({ length: 501 }, (_, i) =>
     envelope({ shop_id: tokens.shop_id, id: `01920000-0000-7000-8000-${String(i).padStart(12, '0')}`, seq: i + 1 }),
@@ -166,7 +166,7 @@ void test('the batch cap is enforced', { skip: SKIP_WITHOUT_DB }, async () => {
 
 void test('pull returns events after the cursor, in server_seq order', { skip: SKIP_WITHOUT_DB }, async () => {
   const client = api();
-  const tokens = await client.register('01799000000', '101112');
+  const tokens = await client.register('01799000000', '101112', 'device-1');
 
   const events = [1, 2, 3].map((n) =>
     envelope({
@@ -191,7 +191,7 @@ void test('pull returns events after the cursor, in server_seq order', { skip: S
 
 void test('a malformed envelope is rejected per-event, not per-batch', { skip: SKIP_WITHOUT_DB }, async () => {
   const client = api();
-  const tokens = await client.register('01799111111', '121314');
+  const tokens = await client.register('01799111111', '121314', 'device-1');
 
   const good = envelope({ shop_id: tokens.shop_id });
   const bad = envelope({ shop_id: tokens.shop_id, id: 'not-a-uuid', seq: 2 });
@@ -203,7 +203,7 @@ void test('a malformed envelope is rejected per-event, not per-batch', { skip: S
 
 void test('a payload failing the shared Zod schema is rejected', { skip: SKIP_WITHOUT_DB }, async () => {
   const client = api();
-  const tokens = await client.register('01799222222', '131415');
+  const tokens = await client.register('01799222222', '131415', 'device-1');
 
   // amount_poisha must be a positive integer — enforced by the SAME schema
   // the client writes with (packages/domain/src/events.ts), not a second
@@ -229,7 +229,7 @@ void test('a payload failing the shared Zod schema is rejected', { skip: SKIP_WI
 
 void test('an absurd amount is rejected — a per-event bound, not a state check', { skip: SKIP_WITHOUT_DB }, async () => {
   const client = api();
-  const tokens = await client.register('01799333333', '141516');
+  const tokens = await client.register('01799333333', '141516', 'device-1');
 
   const result = await client.push(tokens.access_token, [
     envelope({
@@ -258,7 +258,7 @@ void test(
   { skip: SKIP_WITHOUT_DB },
   async () => {
     const client = api();
-    const tokens = await client.register('01799444444', '151617');
+    const tokens = await client.register('01799444444', '151617', 'device-1');
 
     // ৳500 of credit...
     const credit = envelope({

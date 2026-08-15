@@ -12,6 +12,7 @@
 
 import { buildEvent } from './events';
 import type {
+  ApplyArchiveCustomer,
   ApplyCorrection,
   ApplyCredit,
   ApplyPayment,
@@ -122,6 +123,48 @@ export const applyCorrection: ApplyCorrection = (_state, cmd) => {
 
   if ('kind' in built) {
     return validationErrorToDomainError('ENTRY_VOIDED', 'UNKNOWN_EVENT', built.issues);
+  }
+
+  return [built];
+};
+
+/**
+ * Emits `CUSTOMER_ARCHIVED`. Step 11 audit item 7: this function did not
+ * exist — SECURITY.md §7's erasure path (`reason: 'REQUESTED'`, "the
+ * shopkeeper must be able to find and use it") had no command to produce the
+ * event it depends on.
+ *
+ * Rejects an unknown customer_id (UNKNOWN_CUSTOMER) — unlike applyCredit and
+ * applyPayment, which deliberately skip this check (see their own comments:
+ * not asked for by their step). Archiving is different: there is no
+ * plausible legitimate reason to archive a customer_id the fold has never
+ * seen, and unlike a credit/payment amount, permitting it doesn't preserve
+ * any real-world fact — nothing was "recorded" by archiving a customer who
+ * doesn't exist.
+ *
+ * Deliberately does NOT reject archiving an already-archived customer —
+ * matching ENTRY_VOIDED's own idempotence philosophy (EVENTS.md §3: "two
+ * ENTRY_VOIDED events for the same target have the same effect as one").
+ * Two REQUESTED archives for the same customer, arriving from two offline
+ * devices, must not be treated as an error either.
+ */
+export const applyArchiveCustomer: ApplyArchiveCustomer = (state, cmd) => {
+  if (!state.customers.has(cmd.customer_id)) {
+    return { code: 'UNKNOWN_CUSTOMER', message: `applyArchiveCustomer: no customer with id ${cmd.customer_id}.` };
+  }
+
+  const built = buildEvent(
+    'CUSTOMER_ARCHIVED',
+    {
+      schema_version: 1,
+      customer_id: cmd.customer_id,
+      reason: cmd.reason,
+    },
+    cmd.ctx,
+  );
+
+  if ('kind' in built) {
+    return validationErrorToDomainError('CUSTOMER_ARCHIVED', 'UNKNOWN_CUSTOMER', built.issues);
   }
 
   return [built];

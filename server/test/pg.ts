@@ -64,6 +64,16 @@ export async function resetDatabase(): Promise<void> {
   const p = await getPool();
   await p.query('TRUNCATE events RESTART IDENTITY CASCADE');
   await p.query('TRUNCATE tokens, shops RESTART IDENTITY CASCADE');
+  // Added Step 11: login_attempts and security_events were introduced by
+  // 003_auth_hardening.sql and were missing from this list — found by a real
+  // failure, not by inspection. A stale login_attempts row from an EARLIER
+  // `npm test` run (failed_count already at 5, locked_until already set)
+  // survived because nothing ever truncated it, and a later run's test using
+  // the same phone number got a spurious 429 from state left over by a
+  // previous, unrelated test process. TRUNCATE, not DELETE, for the same
+  // reason as the line above — no AUTOINCREMENT sequence on either table to
+  // reset, but consistency with the pattern here doesn't hurt.
+  await p.query('TRUNCATE login_attempts, security_events RESTART IDENTITY CASCADE');
 }
 
 export async function closePool(): Promise<void> {

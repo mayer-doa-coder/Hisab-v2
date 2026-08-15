@@ -32,6 +32,13 @@ export class HttpError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /**
+     * Machine-readable extras merged into the JSON error body — e.g.
+     * `{ retry_after_ms }` on a lockout 429, so the client can set its local
+     * cooldown from the server's authoritative value instead of guessing.
+     * Never put anything here that fails AGENTS.md §8 — no PII, ever.
+     */
+    readonly details?: Readonly<Record<string, unknown>>,
   ) {
     super(message);
     this.name = 'HttpError';
@@ -49,14 +56,40 @@ export function sendJson(res: ServerResponse, status: number, body: unknown): vo
   res.end(payload);
 }
 
+/**
+ * Reduces an unhandled error to what is safe to write to the log. AGENTS.md
+ * §8: "log ids, never content." Found by audit (2026-08-15) that this
+ * previously logged the raw error object: `register()` pre-checks for a
+ * duplicate phone, but under concurrent registrations of the same phone the
+ * losing INSERT can still hit the `shops.phone` UNIQUE constraint, and pg's
+ * DatabaseError carries a `detail` field that literally quotes the
+ * conflicting value — `Key (phone)=(01711111111) already exists.` — for
+ * exactly that error. `console.error(error)` printed the whole object,
+ * detail included. Every field on a pg error EXCEPT the SQLSTATE `code`
+ * (a fixed five-character vocabulary, e.g. '23505', never derived from
+ * request content) can echo query values back, so only that one field and
+ * the JS error's `name` are read here — `message`, `detail`, `hint`,
+ * `table`, `column`, `constraint`, `where` are never touched, deliberately.
+ */
+export function safeErrorSummary(error: unknown): Record<string, unknown> {
+  if (!(error instanceof Error)) return { name: 'UnknownError' };
+
+  const summary: Record<string, unknown> = { name: error.name };
+  const pgCode = (error as { code?: unknown }).code;
+  if (typeof pgCode === 'string' && /^[0-9A-Z]{5}$/.test(pgCode)) {
+    summary.pgErrorCode = pgCode;
+  }
+  return summary;
+}
+
 export function sendError(res: ServerResponse, error: unknown): void {
   if (error instanceof HttpError) {
-    sendJson(res, error.status, { error: error.code, message: error.message });
+    sendJson(res, error.status, { error: error.code, message: error.message, ...error.details });
     return;
   }
-  // Never leak an internal message or stack to the client. AGENTS.md §8:
-  // log ids, never content — so nothing about the request body goes out here.
-  console.error('[server] unhandled error:', error);
+  // Never leak an internal message or stack to the client, and never log one
+  // either — see safeErrorSummary above.
+  console.error('[server] unhandled error:', safeErrorSummary(error));
   sendJson(res, 500, { error: 'INTERNAL', message: 'Internal server error.' });
 }
 

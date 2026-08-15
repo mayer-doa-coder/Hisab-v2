@@ -39,6 +39,14 @@ export interface SyncEngineConfig {
   readonly api: Api;
   readonly store: EventStore;
   readonly tokens: TokenStore;
+  /**
+   * The device's stable id (apps/mobile/src/data/deviceId.ts), sent as the
+   * refresh token's bound fingerprint (docs/SECURITY.md §4). Required, not
+   * optional: a refresh call with no fingerprint would either fail the
+   * server's schema or bind to an empty string, neither of which is a real
+   * device identity.
+   */
+  readonly deviceFingerprint: string;
   readonly breaker?: CircuitBreaker;
   readonly backoff?: BackoffPolicy;
   readonly now?: () => number;
@@ -51,6 +59,7 @@ export class SyncEngine {
   private readonly api: Api;
   private readonly store: EventStore;
   private readonly tokens: TokenStore;
+  private readonly deviceFingerprint: string;
   private readonly breaker: CircuitBreaker;
   private readonly backoff: BackoffPolicy;
   private readonly now: () => number;
@@ -62,6 +71,7 @@ export class SyncEngine {
     this.api = config.api;
     this.store = config.store;
     this.tokens = config.tokens;
+    this.deviceFingerprint = config.deviceFingerprint;
     this.breaker = config.breaker ?? new CircuitBreaker();
     this.backoff = config.backoff ?? DEFAULT_BACKOFF;
     this.now = config.now ?? Date.now;
@@ -141,12 +151,14 @@ export class SyncEngine {
     // 30s of slack, so a token that expires mid-request is refreshed first.
     if (tokens.access_expires_at > this.now() + 30_000) return tokens.access_token;
 
-    const refreshed = await this.api.refresh(tokens.refresh_token);
-    await this.tokens.set({
-      ...tokens,
-      access_token: refreshed.access_token,
-      access_expires_at: refreshed.access_expires_at,
-    });
+    // The server ROTATES on every refresh (docs/SECURITY.md §4) — the
+    // response is a whole new pair, and `tokens.refresh_token` above is now
+    // dead. The full response must be persisted, not merged field-by-field,
+    // or the next refresh presents an already-rotated token and the server
+    // treats that as theft (tokens.ts's REUSE_DETECTED path), revoking the
+    // family and forcing a full re-login.
+    const refreshed = await this.api.refresh(tokens.refresh_token, this.deviceFingerprint);
+    await this.tokens.set(refreshed);
     return refreshed.access_token;
   }
 

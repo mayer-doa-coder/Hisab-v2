@@ -146,3 +146,75 @@ void test('since(seq) returns exactly the events with seq greater than the given
     assert.equal(event.device_id, deviceId);
   }
 });
+
+// ---------------------------------------------------------------------------
+// CUSTOMER_ARCHIVED — Step 11 audit item 7 / VERIFY 6. There is no customer
+// list SCREEN to demonstrate this against (apps/mobile/src/screens/ is empty
+// — Step 8 has not run), so this is the closest honest proof available: a
+// real event, appended through the real eventStore, actually removes the
+// customer from the query a future list screen would run. If a list screen
+// later queries anything other than `WHERE archived = 0`, this test does not
+// cover that screen's own bug — it covers the projection layer underneath.
+// ---------------------------------------------------------------------------
+
+void test('CUSTOMER_ARCHIVED removes a customer from the archived=0 projection query, end to end', async () => {
+  const { store, db } = await createTestStore();
+
+  await store.append('CUSTOMER_ADDED', {
+    schema_version: 1,
+    customer_id: 'c1',
+    display_name: 'রহিম ভাই',
+    phone: null,
+  });
+  await store.append('CUSTOMER_ADDED', {
+    schema_version: 1,
+    customer_id: 'c2',
+    display_name: 'দর্জি',
+    phone: null,
+  });
+
+  const visibleBefore = await db.getAllAsync<{ id: string }>(
+    'SELECT id FROM customers WHERE archived = 0 ORDER BY id',
+    [],
+  );
+  assert.deepStrictEqual(
+    visibleBefore.map((r) => r.id),
+    ['c1', 'c2'],
+    'both customers visible before archiving',
+  );
+
+  const archived = await store.append('CUSTOMER_ARCHIVED', {
+    schema_version: 1,
+    customer_id: 'c1',
+    reason: 'REQUESTED',
+  });
+  assert.ok(!('kind' in archived), 'CUSTOMER_ARCHIVED must be a valid, accepted event');
+
+  const visibleAfter = await db.getAllAsync<{ id: string }>(
+    'SELECT id FROM customers WHERE archived = 0 ORDER BY id',
+    [],
+  );
+  assert.deepStrictEqual(
+    visibleAfter.map((r) => r.id),
+    ['c2'],
+    'the archived customer is excluded from the visible-list query; the other customer is unaffected',
+  );
+
+  // Not deleted — EVENTS.md §3: "Hides a customer from lists. Never deletes
+  // their history." The row still exists, just flagged.
+  const rawRow = await db.getAllAsync<{ id: string; archived: number }>(
+    'SELECT id, archived FROM customers WHERE id = ?',
+    ['c1'],
+  );
+  assert.equal(rawRow.length, 1, 'the archived customer row still exists');
+  assert.equal(rawRow[0]?.archived, 1);
+
+  // Survives a full rebuild too — the archived flag is a fold result, not a
+  // side effect that could be lost on replay (AGENTS.md §3.3).
+  await store.rebuildProjections();
+  const visibleAfterRebuild = await db.getAllAsync<{ id: string }>(
+    'SELECT id FROM customers WHERE archived = 0 ORDER BY id',
+    [],
+  );
+  assert.deepStrictEqual(visibleAfterRebuild.map((r) => r.id), ['c2']);
+});

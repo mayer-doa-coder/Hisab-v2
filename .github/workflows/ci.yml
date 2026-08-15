@@ -115,6 +115,14 @@ jobs:
 
       - run: npm ci
 
+      # SECURITY.md §9: "npm audit --audit-level=high on the server." Scoped
+      # to the server workspace specifically, matching the checklist item —
+      # apps/mobile's dependency tree is a separate concern with its own
+      # (much larger, Expo-managed) surface, not in scope here.
+      - name: npm audit (server, high severity and above)
+        working-directory: server
+        run: npm audit --audit-level=high
+
       # Runs the suite ONCE and asserts on the same output. `test:ci` pins
       # --test-reporter=tap: node:test picks its reporter from TTY detection,
       # so the default is `spec` ("ℹ pass 18") in some environments and `tap`
@@ -162,3 +170,55 @@ jobs:
             exit 1
           fi
           echo "no leaked public env vars"
+
+      # SECURITY.md §9: "Secret scanning on every push (GitHub secret
+      # scanning + gitleaks)." GitHub's own secret scanning runs
+      # independently of this workflow (a repo/org setting, not a CI step);
+      # this is the gitleaks half. fetch-depth: 0 above gives it full history
+      # to scan, not just the current commit.
+      #
+      # If this ever flags server/migrations/001-004*.sql or ci.yml's own
+      # `hisab`/`hisab` Postgres credential: that is a false positive, not a
+      # real finding — docs/DECISIONS.md 2026-08-15 already establishes it is
+      # a throwaway, ephemeral-container credential, deliberately not a
+      # secret. Fix with a gitleaks allowlist entry for that exact string,
+      # not by moving it into GitHub secrets (which would imply it protects
+      # something).
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
+
+  # ---------------------------------------------------------------------------
+  # SECURITY.md §9: "A test asserting no console.log reaches a release
+  # build." eslint.config.js's no-console rule already blocks console.log at
+  # the SOURCE level on every commit (defense at the first layer); this is
+  # the second layer, checking the actual BUNDLED output — the thing that
+  # would ship — in case a dependency itself calls console.log, or a source
+  # file was merged with an eslint-disable working around the rule.
+  #
+  # `expo export` produces the JS bundle only — no native compile, no
+  # Android SDK, no Gradle — so this is fast and does not carry the
+  # native-build risk a full `build:apk` run does.
+  # ---------------------------------------------------------------------------
+  bundle-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+      - run: npm ci
+      - name: Export the release JS bundle
+        working-directory: apps/mobile
+        run: npx expo export --platform android
+      - name: No console.log in the exported bundle
+        working-directory: apps/mobile
+        run: |
+          FOUND=$(grep -rlo "console\.log" dist/ 2>/dev/null || true)
+          if [ -n "$FOUND" ]; then
+            echo "::error::console.log reached the exported bundle: $FOUND — see docs/SECURITY.md §9"
+            exit 1
+          fi
+          echo "no console.log in the exported bundle"

@@ -83,6 +83,10 @@ export async function createDevice(options: DeviceOptions): Promise<SimulatedDev
     api: new Api({ baseUrl: options.baseUrl }),
     store,
     tokens: createMemoryTokenStore(options.tokens),
+    // Reuses the same identity as the event-log device_id — exactly what the
+    // real app does (apps/mobile/src/data/deviceId.ts is one stable id used
+    // for both purposes), not a harness shortcut.
+    deviceFingerprint: options.deviceId,
     // Real wall clock here, not the simulated one: this is only used to
     // decide whether the ACCESS token has expired, which is a real-time
     // question about a real token the real server issued.

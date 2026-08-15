@@ -43,15 +43,27 @@ beforeEach(async () => {
   await resetDatabase();
 });
 
-/** Registers one shop and brings up two devices sharing it, each with its own identity and clock. */
+/**
+ * Registers one shop, then has EACH device log in separately with its own
+ * fingerprint — not both sharing one token pair. Two real devices for one
+ * shop each go through the PIN screen independently and each gets its own
+ * refresh-token family (server/src/auth/tokens.ts); sharing one pair here
+ * would hide the fingerprint-binding path this step added and would break
+ * the moment a test ever exercised a mid-test refresh, since device-b
+ * presenting a token fingerprinted to device-a is exactly the
+ * FINGERPRINT_MISMATCH case tokens.ts now detects.
+ */
 async function twoDevices(baseUrl: string, phone: string): Promise<[SimulatedDevice, SimulatedDevice]> {
-  const tokens = await new Api({ baseUrl }).register(phone, '135790');
+  const api = new Api({ baseUrl });
+  await api.register(phone, '135790', 'device-a');
+  const tokensA = await api.login(phone, '135790', 'device-a');
+  const tokensB = await api.login(phone, '135790', 'device-b');
 
   const a = await createDevice({
     deviceId: 'device-a',
-    shopId: tokens.shop_id,
+    shopId: tokensA.shop_id,
     baseUrl,
-    tokens,
+    tokens: tokensA,
     clockStart: 1_700_000_000_000,
     randomSeed: 11,
   });
@@ -60,9 +72,9 @@ async function twoDevices(baseUrl: string, phone: string): Promise<[SimulatedDev
   // that happen to agree.
   const b = await createDevice({
     deviceId: 'device-b',
-    shopId: tokens.shop_id,
+    shopId: tokensB.shop_id,
     baseUrl,
-    tokens,
+    tokens: tokensB,
     clockStart: 1_700_000_007_500,
     randomSeed: 29,
   });

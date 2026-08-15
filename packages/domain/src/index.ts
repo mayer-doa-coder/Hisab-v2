@@ -25,8 +25,12 @@
 // report, not silently committed.
 // -----------------------------------------------------------------------------
 
+// applyArchiveCustomer added Step 11 (audit item 7) — see commands.ts and
+// types.ts's ArchiveCustomerCommand/ApplyArchiveCustomer for why this was a
+// real gap, not a deferred feature. SHARED-file change, flagged in this
+// step's report.
 export { fold } from './fold';
-export { applyCredit, applyPayment, applyCorrection } from './commands';
+export { applyCredit, applyPayment, applyCorrection, applyArchiveCustomer } from './commands';
 export { detectAnomalies } from './anomalies';
 export { buildEvent } from './events';
 
@@ -97,6 +101,7 @@ export type {
   CreditCommand,
   PaymentCommand,
   CorrectionCommand,
+  ArchiveCustomerCommand,
   DomainError,
   DomainErrorCode,
 
@@ -105,6 +110,7 @@ export type {
   ApplyCredit,
   ApplyPayment,
   ApplyCorrection,
+  ApplyArchiveCustomer,
   DetectAnomalies,
 } from './types';
 

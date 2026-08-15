@@ -13,12 +13,18 @@
     "**/*.ts",
     "../src/data/**/*.ts",
     "../src/viewmodels/**/*.ts",
-    "../src/sync/**/*.ts"
+    "../src/sync/**/*.ts",
+    // Only these two files from src/security/ — both have zero expo/
+    // react-native imports (dependency-injected functions, same discipline
+    // as sync/circuitBreaker.ts and clock.ts), so both are genuinely
+    // testable in plain Node. The rest of src/security/ (tokenStore.ts,
+    // screenSecure.ts, PinScreen.tsx) imports expo-secure-store /
+    // expo-screen-capture / react-native and stays out of this compile.
+    "../src/security/inactivityTimer.ts",
+    "../src/security/dbKeyDerivation.ts"
   ],
   "exclude": [
     // Native modules that cannot load in a plain Node test process.
-    // src/security/ is excluded wholesale for the same reason (expo-secure-store);
-    // sync/memoryTokenStore.ts is the dependency-free stand-in.
     "../src/data/db.expo.ts"
   ]
 }

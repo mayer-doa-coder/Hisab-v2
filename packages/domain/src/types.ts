@@ -435,6 +435,19 @@ export interface CorrectionCommand {
   readonly reason: VoidReason;
 }
 
+/**
+ * Emits `CUSTOMER_ARCHIVED`. ADDED THIS STEP (Step 11 audit item 7) — was
+ * missing entirely: no command function existed to produce this event, so
+ * SECURITY.md §7's erasure path (`reason: 'REQUESTED'`) was unreachable. This
+ * is a SHARED file change — flagged per CLAUDE.md's "stop and say so," not
+ * silently made. See the accompanying report.
+ */
+export interface ArchiveCustomerCommand {
+  readonly ctx: CommandContext;
+  readonly customer_id: string;
+  readonly reason: CustomerArchiveReason;
+}
+
 // =============================================================================
 // The viewmodel boundary (CONTRIBUTING.md §2).
 //
@@ -492,6 +505,10 @@ export type ApplyPayment = (state: LedgerState, cmd: PaymentCommand) => AnyEvent
 export type ApplyCorrection = (
   state: LedgerState,
   cmd: CorrectionCommand,
+) => AnyEvent[] | DomainError;
+export type ApplyArchiveCustomer = (
+  state: LedgerState,
+  cmd: ArchiveCustomerCommand,
 ) => AnyEvent[] | DomainError;
 
 /**

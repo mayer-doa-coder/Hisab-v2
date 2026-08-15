@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import type { Pool } from '../db/pool';
 import { HttpError, MAX_BATCH_EVENTS } from '../http/respond';
+import { countRecentEvents, RATE_ENVELOPE_THRESHOLD } from '../security/rateEnvelope';
 import { validateIncomingEvent, type EventRejection } from '../validate';
 
 const PushSchema = z.object({ events: z.array(z.unknown()) });
@@ -32,6 +33,8 @@ export async function pushEvents(
   shopId: string,
   body: unknown,
   now: number,
+  /** Overridable so a test can prove the rejection path without pushing 2,000 real events first. Production never passes this. */
+  rateThreshold: number = RATE_ENVELOPE_THRESHOLD,
 ): Promise<PushResult> {
   const parsed = PushSchema.safeParse(body);
   if (!parsed.success) {
@@ -51,6 +54,13 @@ export async function pushEvents(
   const duplicates: string[] = [];
   const rejected: EventRejection[] = [];
 
+  // One count query per TYPE actually present in the batch, not per event —
+  // a 500-event batch of one type costs one query. Tracks additions from
+  // this batch in-memory so the running total is checked, not just the
+  // pre-batch snapshot (otherwise a single huge batch could sail through
+  // entirely on a stale count).
+  const runningCounts = new Map<string, number>();
+
   for (const raw of events) {
     const result = validateIncomingEvent(raw, shopId);
     if (!result.ok) {
@@ -59,6 +69,24 @@ export async function pushEvents(
     }
 
     const event = result.event;
+
+    let count = runningCounts.get(event.type);
+    if (count === undefined) {
+      count = await countRecentEvents(pool, shopId, event.type, now);
+    }
+    if (count >= rateThreshold) {
+      // A volume signal, not a content judgement — see rateEnvelope.ts's
+      // header for why this is a different category from the
+      // balance-exceeded rejection this project removed in Step 10.
+      rejected.push({
+        id: event.id,
+        reason: 'RATE_ENVELOPE_EXCEEDED',
+        detail: `shop has already recorded ${count} ${event.type} events in the last 24h`,
+      });
+      continue;
+    }
+    runningCounts.set(event.type, count + 1);
+
     const inserted = await pool.query(
       `INSERT INTO events (id, device_id, seq, hlc, shop_id, type, payload, created_at, received_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)

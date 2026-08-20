@@ -13,6 +13,7 @@ import type { ViewModelFormatter } from '@hisab/domain';
 const fakeFormat: ViewModelFormatter = {
   money: (amount) => `TK${amount}`,
   days: (count) => `${count}d`,
+  count: (value) => String(value),
   quantity: (count, unit) => `${count}${unit}`,
   unit: (unit) => unit,
   attention: (reason) => reason.kind,
@@ -50,15 +51,80 @@ void test('toCustomerRowVM defaults balance to 0 when no balance row exists', ()
   assert.equal(vm.balanceDisplay, 'TK0');
 });
 
-void test('needsAttention and attentionReason are always stubbed false/null', () => {
+// ---------------------------------------------------------------------------
+// needsAttention / attentionReason. These were stubbed false/null from Step 7
+// until Step 12; the test that used to live here asserted the stub. It now
+// asserts the real rule, which lives in the domain
+// (packages/domain/src/attention.ts) — this file only checks that the mapping
+// through the formatter is wired correctly, not the rule itself, which has its
+// own suite.
+// ---------------------------------------------------------------------------
+
+const NOW = 1_700_000_000_000;
+const DAY = 86_400_000;
+
+void test('needsAttention is REAL: an outstanding balance idle past the threshold flips it', () => {
   const vm = toCustomerRowVM(
-    { id: 'c1', display_name: 'Rahim', phone: null, balance_poisha: -999999, last_activity_at: 1 },
-    999_999_999,
+    {
+      id: 'c1',
+      display_name: 'রহিম ভাই',
+      phone: null,
+      balance_poisha: 50_000,
+      last_activity_at: NOW - 45 * DAY,
+    },
+    NOW,
+    fakeFormat,
+    false,
+  );
+  assert.equal(vm.needsAttention, true);
+  // The domain picked the fact; the formatter wrote it. The real i18n
+  // formatter renders this as "৪৫ দিন ধরে কিছু দেননি" — a fact, not a score
+  // (AGENTS.md §4.8). The fake here just echoes the kind.
+  assert.equal(vm.attentionReason, 'NO_ACTIVITY');
+  assert.equal(vm.daysSinceActivityDisplay, '45d');
+});
+
+void test('needsAttention is REAL: a negative balance flips it immediately, at any age', () => {
+  const vm = toCustomerRowVM(
+    { id: 'c1', display_name: 'Rahim', phone: null, balance_poisha: -999_999, last_activity_at: NOW },
+    NOW,
     fakeFormat,
     true,
   );
-  // Even a large negative balance and old activity must not flip these —
-  // Step 12 builds the real rule; this file must never half-implement it.
+  assert.equal(vm.needsAttention, true);
+  assert.equal(vm.attentionReason, 'BALANCE_NEGATIVE');
+});
+
+void test('a settled customer stays silent no matter how long ago they settled', () => {
+  const vm = toCustomerRowVM(
+    {
+      id: 'c1',
+      display_name: 'Rahim',
+      phone: null,
+      balance_poisha: 0,
+      last_activity_at: NOW - 900 * DAY,
+    },
+    NOW,
+    fakeFormat,
+    false,
+  );
+  assert.equal(vm.needsAttention, false, 'nothing is owed, so there is nothing to say');
+  assert.equal(vm.attentionReason, null);
+});
+
+void test('an outstanding balance inside the threshold stays silent', () => {
+  const vm = toCustomerRowVM(
+    {
+      id: 'c1',
+      display_name: 'Rahim',
+      phone: null,
+      balance_poisha: 50_000,
+      last_activity_at: NOW - 3 * DAY,
+    },
+    NOW,
+    fakeFormat,
+    false,
+  );
   assert.equal(vm.needsAttention, false);
   assert.equal(vm.attentionReason, null);
 });

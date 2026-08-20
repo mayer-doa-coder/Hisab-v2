@@ -223,6 +223,71 @@ Considered: `react-native-ssl-pinning` (npm, verified this step) — real, v1.6.
 Chose: recommend the Network Security Config approach — **not implemented this step**, per the task's explicit instruction that pinning needs the cost comparison before any code is added, not silently included.
 Because: it is the only candidate with genuinely zero new runtime dependency — a config-plugin-generated XML file costs a few hundred bytes, not a package. This matches this project's own demonstrated preference for a hand-rolled or OS-native mechanism over a dependency when one is available (the HLC implementation in `clock.ts` is the precedent). Scoped to **Android only**, consistent with this project's own budget language — every size gate, every APK-cost disclosure, and `size-gate.yml` itself are Android-specific; nothing in this repository currently treats iOS as a build target with its own budget, despite `app.json`'s `ios.supportsTablet: true`. If iOS pinning is ever needed, `react-native-ssl-pinning` is the fallback with real numbers already gathered above, not TrustKit under a guessed package name (checked: no `trustkit-react-native` package exists on npm — not asserting a specific iOS library without verifying it first). **Two things a real implementation must not skip, regardless of which approach is chosen**: SECURITY.md §3 already names the certificate-rotation risk ("a documented rotation plan so a certificate change doesn't brick installed apps") — pin the CA or intermediate certificate's public key, not the leaf, and include a backup pin (a second, not-yet-used key) so a future rotation has a pre-provisioned fallback; and this needs a real device/TLS endpoint to test against, the same environment gap named in the SQLCipher entry above.
 
+## 2026-08-20 — "Overdue" is not computable and is replaced by outstanding-plus-idle
+Considered: add `terms_days` / `credit_limit` to `CUSTOMER_ADDED` so a real due date exists; flag on age alone; flag relative to the shop's own median idle time; flag on outstanding balance plus an idle threshold.
+Chose: the last. `customerAttention(balance, now)` in `packages/domain/src/attention.ts` returns BALANCE_NEGATIVE immediately at any age, nothing at all for a zero balance at any age, and NO_ACTIVITY with a day count for a positive balance idle past a threshold.
+Because: nothing is ever due on a date, so nothing can be overdue — adding terms is the data-minimisation violation SECURITY.md §6 names v1's customer form for, not a missing feature, which is why Step 7's stub could never have been filled in as written. Age alone flags everyone who ever bought once and settled up, and a list that cries wolf is ignored inside a week, so the zero-balance-is-silent branch is the load-bearing one. The median-relative variant was rejected specifically because "you are worse than average" is a risk score wearing a fact's clothing, which SECURITY.md §7 bans on a screen the customer can see.
+
+## 2026-08-20 — `NO_ACTIVITY_ATTENTION_DAYS = 30` is an untuned placeholder, named and exported so it is greppable
+Considered: hard-code 30 inside the branch; make the threshold a shopkeeper-configurable setting on `ViewModelOptions`; export a named constant that is also an optional parameter.
+Chose: the named constant `NO_ACTIVITY_ATTENTION_DAYS`, marked `[VERIFY]`, overridable per call.
+Because: nothing in `research/` supports 30 over 21 or 45 and AGENTS.md §9 forbids presenting it as if something did. Same status and the same treatment as `DUPLICATE_SUSPECTED_WINDOW_MS` in `anomalies.ts` and the base lockout interval in `server/src/auth/lockout.ts`. A settings screen was deferred because no shopkeeper has asked for one; if pilot data shows one constant cannot serve every shop, the parameter is already there.
+
+## 2026-08-20 — Expiry reports an upper bound, not a quantity; still no FEFO
+Considered: assume FEFO and deplete the earliest-expiring batch first; add a batch reference to `STOCK_SOLD`; scan `STOCK_RECEIVED` for any past expiry date and report it; report `min(on_hand, units received in expired batches)`.
+Chose: the last. `expiryRisks(state, events, now)` reports `at_most_expired_units`, and reports nothing at all once a product is sold out.
+Because: `STOCK_SOLD` carries no batch reference (EVENTS.md §4), so which batch is left is genuinely unknowable and a FEFO assumption would be an invented fact. The `min` bound is true under FEFO, FIFO, LIFO or any other consumption order, which is what makes it safe to put on a counter phone; the sold-out check removes the largest class of false alarm a naive past-expiry scan produces. Adding batch references would fix it properly and would also cost a tap at the counter — still a decision to make against real shop data, unchanged from the 2026-08-08 `earliest_expiry` entry.
+
+## 2026-08-20 — `recordSale` takes a LIST of CommandContexts, and the count is validated
+Considered: derive sibling envelopes inside the domain as `seq + 1`, `seq + 2`; pass a `nextContext()` supplier closure; pass an array and validate its length against an exported `saleEventCount(cmd)`.
+Chose: the array, with `CONTEXT_COUNT_MISMATCH` when it is the wrong length.
+Because: `seq` is `UNIQUE (device_id, seq)` and is allocated by the data layer's `nextSeq()` promise chain (`eventStore.ts`), so a domain that mints `seq + 1` either collides at insert time or leaves a permanent hole in the device's sequence — and minting ids at all is I/O, which AGENTS.md §3.1 forbids. A silent slice of a too-long array would hide the same bug, so the count is checked rather than trusted; `saleEventCount` is exported precisely so the caller can draw the right number before calling.
+
+## 2026-08-20 — The stock fold lives in `inventory.ts`; `fold.ts` delegates rather than inlining it
+Considered: extend `fold.ts`'s switch with the six inventory cases; return a separate `InventoryState` that callers combine themselves; keep `foldInventory` in its own file and have `fold()` call it and spread the result.
+Chose: the third, with `InventoryProjections` defined as `Pick<LedgerState, 'products' | 'stock' | 'pendingProductIds'>`, and `compareByHlc` / `collectVoidedIds` moved into a new `ordering.ts` that both import.
+Because: `LedgerState` is the SHARED state object the whole app reads and splitting it would have made every caller reassemble two halves; but `fold.ts` is the hot, most-tested path for the six core events and doubling its switch to serve Phase 4 would bury it. Deriving the return type with `Pick` means the two folds cannot disagree about shape. `ordering.ts` exists only because `fold.ts` calling `foldInventory` would otherwise force a circular import to share those two helpers, and duplicating them would breach AGENTS.md §4.3.
+
+## 2026-08-20 — The `daily_sales` projection is still not built, because it needs a timezone decision first
+Considered: add `dailySales` to `LedgerState` bucketing `STOCK_SOLD` by UTC date; bucket by a hard-coded UTC+6; add a timezone parameter to the fold; leave it unbuilt.
+Chose: leave it unbuilt this step, and record why.
+Because: bucketing a timestamp into a day requires a timezone, and Bangladesh is UTC+6 — so a 9pm Dhaka sale lands on the *next* UTC day, which would systematically misattribute evening trade in the one projection whose entire purpose is feeding a demand forecaster. Picking UTC silently would bake that error in; hard-coding +6 inside a pure fold is the kind of hidden constant that is invisible when it is wrong. `daily_sales` feeds Phase 5, so the decision can be made when the forecaster is built and can be made against real shop hours. This is now the only EVENTS.md §7 projection with no implementation.
+
+## 2026-08-20 — The aging view is a total plus a capped attention list, not a sorted list of everyone
+Considered: every customer with a balance, sorted by days idle; the same list paginated; a total plus the flagged rows capped at `ATTENTION_ROW_CAP` with the remainder collapsed behind a tap.
+Chose: the third. `AgingScreen`'s root is a `View`, not a `ScrollView`, so the primary view structurally cannot scroll; only the expanded "everyone" mode scrolls.
+Because: Phase 4's exit criterion is "answers how much am I owed, by whom, and how long, in one screen without scrolling", and a flat list fails it at any realistic customer count — a shop with sixty debtors scrolls however the rows are styled. Splitting the screen into one large total, a handful of named rows, and a counted remainder answers all three questions at a glance while a customer waits. The cap is untuned and named so it is one line to change.
+
+## 2026-08-20 — Attention ordering lives in the data layer, because the viewmodel is unsortable by construction
+Considered: sort inside `AgingScreen`; add raw numeric fields to `CustomerRowVM` so the screen can sort; build a separate `AgingVM` whose rows arrive already ordered.
+Chose: the third, in `apps/mobile/src/data/screenViewmodels.ts`.
+Because: `CustomerRowVM.attentionReason` is a finished Bengali string and `daysSinceActivityDisplay` is "৪৫ দিন" — sorting in the screen would mean parsing Bengali numerals back out of display text. Adding raw numbers to the viewmodel would have re-opened the door customer.ts's header closes ("B never decides who is overdue"). The order is: negative balances first (a data question that does not age), then longest idle, then largest balance, then name. Deliberately NOT a weighted blend of amount and age — that is a risk score with the label filed off (AGENTS.md §4.8).
+
+## 2026-08-20 — `toDisplayTaka` exported; the old "the UI never formats money" note was not implementable
+Considered: leave `toDisplayTaka` internal and divide by 100 in the formatter; add a `toTakaParts` splitter to the domain; export `toDisplayTaka`.
+Chose: export it, and correct index.ts's header note.
+Because: `ViewModelFormatter.money(amount: Poisha): string` is declared in types.ts and its own docstring says B implements it in `apps/mobile/src/i18n/` — so the component producing those "pre-formatted strings" always lived outside the package, and index.ts's stated reason for withholding the function contradicted the contract it was protecting. The alternative was a `/ 100` in the UI, which breaks AGENTS.md §3.2 for real. The formatter now does string work only.
+
+## 2026-08-20 — `sumPoisha` and `absDiff` exported, because the lint guard has a blind spot
+Considered: sum balances with a local `+=` loop in the viewmodel builder; re-export `add`/`subtract`; export purpose-built aggregation helpers.
+Chose: `sumPoisha` and `absDiff` in money.ts, exported.
+Because: the aging total and the daily summary both need a sum, and the first draft did it with a local loop in `apps/mobile/src/data/`. eslint's `poishaArithmeticGuard` did NOT flag it — its selectors key on identifiers ending in `_poisha`, and an accumulator is called `total` — so AGENTS.md §3.2 would have been broken silently, by a rule that looked like it was enforcing it. Exporting the operation is better than relying on a linter blind spot. `add`/`subtract`/`fromTaka` stay internal.
+
+## 2026-08-20 — `ViewModelFormatter.count()` added; a bare number had no way into the user's numeral script
+Considered: format counts with `String(n)` in the screen; reuse `days()` and strip the unit word with a regex; add `count(value: number): string` to the interface.
+Chose: the third. SHARED types.ts change.
+Because: the aging view and the daily summary both render plain counts (how many customers, how many entries), numeral script is a user setting (AGENTS.md §6), and `String(n)` in a screen hardcodes Arabic digits. The regex version shipped briefly and worked; it was also indefensible. One method closes the gap.
+
+## 2026-08-20 — No navigation library; a ~50-line state switcher instead
+Considered: react-navigation with react-native-screens and safe-area-context; expo-router; a plain `useState` tab switcher in `src/navigation/AppShell.tsx`.
+Chose: the switcher.
+Because: DECISIONS.md 2026-08-15 records 2.73 MB of APK headroom against the 25 MB gate, and these five screens are flat peers with no deep linking, no gesture-driven back, and no header animation. CLAUDE.md names "reaching for a library" as this project's specific failure mode and says to ask first. When the six core screens need a real back stack and hardware-back handling, that is the moment to price a navigator against measured headroom.
+
+## 2026-08-20 — `t()` throws on a missing key rather than falling back to English
+Considered: return the key name; fall back to the English string; throw.
+Chose: throw, with the locale/namespace/key in the message.
+Because: pulling i18n into the stricter test tsconfig revealed that `t()` returned `string | undefined` typed as `string` — it compiled only because apps/mobile/tsconfig.json extends expo's base, which does not set `noUncheckedIndexedAccess`, so a missing key would have rendered the literal text "undefined" on screen. A missing key is a programmer error (AGENTS.md §6) and the interface-per-namespace pattern exists so it is a compile error first; a silent English fallback in a Bengali-first app is precisely the failure that arrangement was built to prevent.
+
 ## YYYY-MM-DD — <title>
 Considered:
 Chose:

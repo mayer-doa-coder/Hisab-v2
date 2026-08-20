@@ -17,6 +17,28 @@ export interface KeyValueStore {
 const DEVICE_ID_KEY = 'hisab.device_id';
 
 /**
+ * Reads-or-creates a stable id under `key`, never blindly creates. Generic
+ * over `getOrCreateDeviceId`'s own shape because `bootstrap.ts` (Step 14)
+ * needs the identical read-or-create-once behaviour for `shop_id` — there is
+ * no login screen yet (BUILD_PLAN.md Phase 2: "Still no network"), so a
+ * shop, like a device, gets a stable local id generated once and persisted,
+ * not asked for.
+ */
+export async function getOrCreateId(
+  store: KeyValueStore,
+  key: string,
+  generateId: () => string,
+): Promise<string> {
+  const existing = await store.getItemAsync(key);
+  if (existing !== null) {
+    return existing;
+  }
+  const id = generateId();
+  await store.setItemAsync(key, id);
+  return id;
+}
+
+/**
  * Regenerating device_id per session breaks HLC ordering (a new "device")
  * and seq monotonicity (UNIQUE(device_id, seq) would restart at 1 for what
  * SQLite would treat as a different device) — so this reads-or-creates,
@@ -26,11 +48,5 @@ export async function getOrCreateDeviceId(
   store: KeyValueStore,
   generateId: () => string,
 ): Promise<string> {
-  const existing = await store.getItemAsync(DEVICE_ID_KEY);
-  if (existing !== null) {
-    return existing;
-  }
-  const id = generateId();
-  await store.setItemAsync(DEVICE_ID_KEY, id);
-  return id;
+  return getOrCreateId(store, DEVICE_ID_KEY, generateId);
 }

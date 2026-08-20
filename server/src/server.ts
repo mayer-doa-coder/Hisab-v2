@@ -14,7 +14,7 @@ import {
   sendJson,
 } from './http/respond';
 import { login, logout, refresh, register } from './routes/auth';
-import { parseSince, pullEvents, pushEvents } from './routes/events';
+import { parseLimit, parseSince, pullEvents, pushEvents } from './routes/events';
 import { resolveToken } from './auth/tokens';
 
 export interface ServerConfig {
@@ -100,8 +100,7 @@ export function createServer(config: ServerConfig): Server {
       case 'GET /v1/events': {
         const shopId = await requireShop(pool, req, now);
         const since = parseSince(url.searchParams.get('since'));
-        const limitParam = url.searchParams.get('limit');
-        const limit = limitParam === null ? undefined : Number(limitParam);
+        const limit = parseLimit(url.searchParams.get('limit'));
         sendJson(res, 200, await pullEvents(pool, shopId, since, limit));
         return;
       }

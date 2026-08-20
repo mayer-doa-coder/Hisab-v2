@@ -117,6 +117,14 @@ export interface EventStore {
   setCursor(serverSeq: number): Promise<void>;
   /** Every event, for a full fold. Used by the convergence test and by rebuilds. */
   allEvents(): Promise<AnyEvent[]>;
+  /**
+   * Every event touching one customer: direct references plus ENTRY_VOIDEDs
+   * targeting them. Surfaces the same query append()/writeProjection() already
+   * use internally — CustomerDetailScreen (Step 14) needs the raw events to
+   * build a running-balance history via @hisab/domain's customerHistory(),
+   * which is a different shape from the customers/balances projection.
+   */
+  eventsForCustomer(customerId: string): Promise<AnyEvent[]>;
 }
 
 export function createEventStore(config: EventStoreConfig): EventStore {
@@ -267,6 +275,10 @@ export function createEventStore(config: EventStoreConfig): EventStore {
     async allEvents() {
       const rows = await db.getAllAsync<EventRow>(`SELECT ${EVENT_COLUMNS} ${EVENT_SOURCE}`, []);
       return rows.map(rowToEvent);
+    },
+
+    async eventsForCustomer(customerId) {
+      return getEventsForCustomer(customerId);
     },
 
     async unsynced() {

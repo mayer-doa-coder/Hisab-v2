@@ -175,6 +175,28 @@ export function parseSince(value: string | null): number {
   return parsed;
 }
 
+/**
+ * FIXED — found during a whole-project audit: server.ts used to pass
+ * `?limit=` straight through as `Number(limitParam)` with no validation,
+ * unlike `parseSince` above. A non-numeric or malformed value (`limit=abc`,
+ * `limit=1.5`, `limit=-1`) produced `NaN` or a non-integer, which
+ * `pullEvents`'s `Math.min(Math.max(1, limit), MAX_PULL_LIMIT)` propagates
+ * unchanged (`Math.max`/`Math.min` with a NaN operand return NaN) straight
+ * into the `LIMIT $3` parameter of a real SQL query — surfacing as an
+ * unhandled Postgres type error and a bare 500, not a clean 400, the same
+ * class of input `since` was already guarded against. Mirrors parseSince
+ * exactly, including returning the default rather than throwing when the
+ * caller omitted `limit` entirely.
+ */
+export function parseLimit(value: string | null, fallback: number = DEFAULT_PULL_LIMIT): number {
+  if (value === null || value === '') return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new HttpError(400, 'INVALID_LIMIT', '`limit` must be a positive integer.');
+  }
+  return parsed;
+}
+
 async function maxServerSeq(pool: Pool, shopId: string): Promise<number> {
   const { rows } = await pool.query<{ max: number | null }>(
     'SELECT MAX(server_seq) AS max FROM events WHERE shop_id = $1',

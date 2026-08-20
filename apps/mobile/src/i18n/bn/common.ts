@@ -12,6 +12,10 @@ export interface CommonStrings {
   languageLabel: string;
   save: string;
   cancel: string;
+  /** Unit word for a day count. ViewModelFormatter.days() prepends the number. */
+  days: string;
+  back: string;
+  delete: string;
 
   // ---- PIN entry (Step 10) --------------------------------------------------
   // ADDED BY A, IN B'S DIRECTORY. This file is B's under .github/CODEOWNERS
@@ -40,6 +44,9 @@ export const common: CommonStrings = {
   languageLabel: 'ভাষা',
   save: 'সংরক্ষণ',
   cancel: 'বাতিল',
+  days: 'দিন',
+  back: 'ফিরে যান',
+  delete: 'মুছে ফেলুন',
 
   pinPrompt: 'পিন দিন',
   pinSetPrompt: 'নতুন পিন দিন',

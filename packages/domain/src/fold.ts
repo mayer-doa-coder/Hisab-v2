@@ -3,15 +3,23 @@
 // Scoped to the SIX core events (EVENTS.md §3): CUSTOMER_ADDED,
 // CUSTOMER_RENAMED, CUSTOMER_ARCHIVED, CREDIT_GIVEN, PAYMENT_RECEIVED,
 // ENTRY_VOIDED. Every other event type falls through the switch below and is
-// silently skipped — not stubbed, not folded. Product/stock folding is
-// Step 12; `products`, `stock`, and `pendingProductIds` are always empty here.
+// silently skipped — not stubbed, not folded.
+//
+// Product/stock folding landed in Step 12 and lives in inventory.ts, which
+// this file DELEGATES to rather than inlines: `LedgerState` stays the single
+// state object the whole app reads (it is the SHARED contract agreed in
+// Step 2), while the inventory logic stays separately readable and separately
+// deletable. `foldInventory` returns a `Pick<LedgerState, ...>` of exactly the
+// three fields it owns, so the two folds cannot disagree about their shape.
 //
 // Zero I/O (AGENTS.md §3.1): no Date, no randomness, no platform access.
 // Balance arithmetic goes through money.ts's add/subtract exclusively
 // (AGENTS.md §3.2) — enforced by this file also being covered by
 // eslint.config.js's poishaArithmeticGuard.
 
+import { foldInventory } from './inventory';
 import { add, subtract } from './money';
+import { collectVoidedIds, compareByHlc } from './ordering';
 import type {
   AnyEvent,
   BalanceState,
@@ -20,36 +28,6 @@ import type {
   LedgerState,
   Poisha,
 } from './types';
-
-/**
- * EVENTS.md §1 invariant 3: "Ordering is by hlc, then device_id as a
- * tiebreak." fold() sorts internally rather than trusting the caller, so
- * order-independence is a property of the function, not an assumption about
- * its input.
- */
-function compareByHlc(a: AnyEvent, b: AnyEvent): number {
-  if (a.hlc < b.hlc) return -1;
-  if (a.hlc > b.hlc) return 1;
-  if (a.device_id < b.device_id) return -1;
-  if (a.device_id > b.device_id) return 1;
-  return 0;
-}
-
-/**
- * Every `voids_event_id` referenced by any `ENTRY_VOIDED` in the log, from a
- * full scan independent of processing order. Using a Set makes two
- * `ENTRY_VOIDED`s for the same target collapse to one automatically — that is
- * the idempotency guarantee (EVENTS.md §3), not a separate check.
- */
-function collectVoidedIds(events: readonly AnyEvent[]): ReadonlySet<string> {
-  const voided = new Set<string>();
-  for (const event of events) {
-    if (event.type === 'ENTRY_VOIDED') {
-      voided.add(event.payload.voids_event_id);
-    }
-  }
-  return voided;
-}
 
 /**
  * `last_activity_at` is the max of `occurred_at ?? created_at` seen so far,
@@ -160,13 +138,19 @@ export const fold: Fold = (events) => {
     }
   }
 
+  // Two passes over the log rather than one interleaved switch. Deliberate:
+  // each fold sorts and scans independently, which is what lets either be
+  // called on its own and tested on its own. The cost is O(2n log n) on a list
+  // the caller already bounds with a LIMIT.
+  const { products, stock, pendingProductIds } = foldInventory(events);
+
   return {
     customers,
     balances,
-    products: new Map(),
-    stock: new Map(),
+    products,
+    stock,
     voided,
     pendingCustomerIds,
-    pendingProductIds: new Set(),
+    pendingProductIds,
   };
 };

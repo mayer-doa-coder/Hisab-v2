@@ -137,16 +137,28 @@ export function PinScreen({
       // No confirm key: the PIN submits on its last digit. One less tap on a
       // fixed-length secret, and the keypad's ✓ would be dead weight.
       if (key === 'confirm') return;
+      if (digits.length >= pinLength) return;
 
-      setDigits((current) => {
-        if (current.length >= pinLength) return current;
-        const next = current + key;
-        if (next.length === pinLength) void complete(next);
-        return next;
-      });
+      // FIXED — found during a whole-project audit: `complete(next)` used to
+      // be called from inside the `setDigits` updater function above. A React
+      // state updater must be pure — React's documented contract allows it to
+      // invoke the function more than once for one state change (this is
+      // exactly what StrictMode's deliberate double-invocation checks for in
+      // development, and is not guaranteed to stay a non-issue in production
+      // across React versions) — so a real network mutation (`session.submit`
+      // / `session.setPin`, on the PIN-entry path specifically) living inside
+      // it risked firing twice per keystroke: a duplicate login attempt that
+      // could burn two lockout strikes for one real one, or a duplicate
+      // registration call. Computing `next` from the closed-over `digits`
+      // and calling `complete` as an ordinary side effect after `setDigits`
+      // makes it fire exactly once per digit, matching every other
+      // side-effecting call in this file.
+      const next = digits + key;
+      setDigits(next);
       setMessage(null);
+      if (next.length === pinLength) void complete(next);
     },
-    [busy, complete, pinLength],
+    [busy, complete, digits, pinLength],
   );
 
   return (

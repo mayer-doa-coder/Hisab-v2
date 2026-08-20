@@ -69,10 +69,26 @@ export async function archiveCustomer(
   customerId: string,
   reason: CustomerArchiveReason,
 ): Promise<ArchiveCustomerResult> {
+  // FIXED — found during a whole-project audit: this query used to select
+  // only events whose payload has `customer_id` directly, which excludes
+  // ENTRY_VOIDED events (their payload carries `voids_event_id`, never
+  // `customer_id`). That made the fold below incomplete: if this customer's
+  // own CUSTOMER_ADDED had been voided, the un-voided CUSTOMER_ADDED would
+  // still be included and `state.customers.has(customerId)` would wrongly
+  // read true, letting a CUSTOMER_ARCHIVED be appended for a customer_id
+  // that — per the real, full-log fold — no longer exists. Mirrors
+  // eventStore.ts's getEventsForCustomer exactly, which does not have this
+  // gap, for the same reason: ENTRY_VOIDED can target ANY event id,
+  // including CUSTOMER_ADDED (EVENTS.md §3), not only CREDIT_GIVEN/
+  // PAYMENT_RECEIVED.
   const rows = await db.getAllAsync<EventRow>(
     `SELECT id, device_id, seq, hlc, shop_id, type, payload, created_at, synced_at
-       FROM events WHERE json_extract(payload, '$.customer_id') = ?`,
-    [customerId],
+       FROM events
+      WHERE json_extract(payload, '$.customer_id') = ?
+         OR (type = 'ENTRY_VOIDED' AND json_extract(payload, '$.voids_event_id') IN (
+               SELECT id FROM events WHERE json_extract(payload, '$.customer_id') = ?
+             ))`,
+    [customerId, customerId],
   );
   const state = fold(rows.map(rowToEvent));
 

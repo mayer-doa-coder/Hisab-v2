@@ -14,6 +14,18 @@
     "../src/data/**/*.ts",
     "../src/viewmodels/**/*.ts",
     "../src/sync/**/*.ts",
+    // i18n and the two pure ui/ helpers it builds on. Added Step 13: the real
+    // ViewModelFormatter lives in src/i18n/formatter.ts and has zero
+    // react-native imports (it is string work over @hisab/domain), so it is
+    // genuinely testable in plain Node — same bar as the src/security/ files
+    // below. The .tsx components are NOT here and stay out of this compile.
+    "../src/i18n/**/*.ts",
+    "../src/ui/formatDigits.ts",
+    "../src/ui/typography.ts",
+    // The dev-only synthetic ledger (no react-native imports). In the test
+    // compile so the demo data the Phase 4 preview renders is type-checked
+    // against the real event types, not just assumed to match.
+    "../src/gallery/demoLedger.ts",
     // Only these two files from src/security/ — both have zero expo/
     // react-native imports (dependency-injected functions, same discipline
     // as sync/circuitBreaker.ts and clock.ts), so both are genuinely

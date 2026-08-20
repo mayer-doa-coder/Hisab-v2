@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { add, fromTaka, isNegative, subtract, toDisplayTaka } from '../src/money.ts';
+import { absDiff, add, fromTaka, isNegative, subtract, sumPoisha, toDisplayTaka } from '../src/money.ts';
 
 void test('fromTaka rounds half toward positive infinity', () => {
   // 10.015 * 100 === 1001.5 exactly in IEEE 754 double — a genuine tie.
@@ -69,4 +69,34 @@ void test('toDisplayTaka: two decimal places, never scientific notation', () => 
   const display = toDisplayTaka(large);
   assert.equal(display, '123456.78');
   assert.doesNotMatch(display, /e/i);
+});
+
+// ---------------------------------------------------------------------------
+// sumPoisha / absDiff — Step 13. Exported so aggregation (the aging view's
+// total, the daily summary's net) never happens as a raw `+=`/`Math.abs`
+// outside this file (AGENTS.md §3.2). Had no direct test until this audit —
+// only exercised indirectly through apps/mobile/test/screenViewmodels.test.ts.
+// ---------------------------------------------------------------------------
+
+void test('sumPoisha totals a list, including negative and empty inputs', () => {
+  assert.equal(sumPoisha([fromTaka(5), fromTaka(3), fromTaka(2)]), fromTaka(10));
+  assert.equal(sumPoisha([]), 0);
+  assert.equal(sumPoisha([fromTaka(5)]), fromTaka(5));
+  // A mix including a negative value (an over-payment) — sumPoisha does not
+  // filter or clamp; the aging view's own filter decides what to include.
+  assert.equal(sumPoisha([fromTaka(10), fromTaka(-3)]), fromTaka(7));
+});
+
+void test('sumPoisha order does not matter (commutative, associative)', () => {
+  const values = [fromTaka(1), fromTaka(2), fromTaka(3), fromTaka(4)];
+  assert.equal(sumPoisha(values), sumPoisha([...values].reverse()));
+});
+
+void test('absDiff is the unsigned magnitude, whichever argument is larger', () => {
+  assert.equal(absDiff(fromTaka(10), fromTaka(3)), fromTaka(7));
+  assert.equal(absDiff(fromTaka(3), fromTaka(10)), fromTaka(7), 'order must not matter');
+  assert.equal(absDiff(fromTaka(5), fromTaka(5)), 0);
+  assert.equal(absDiff(fromTaka(0), fromTaka(0)), 0);
+  // Never negative, even across a sign change.
+  assert.equal(absDiff(fromTaka(-5), fromTaka(5)), fromTaka(10));
 });

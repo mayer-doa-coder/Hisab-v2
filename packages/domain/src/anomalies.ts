@@ -1,8 +1,11 @@
 // anomalies.ts — EVENTS.md §8. Detected after the fold, never blocking a
 // write.
 //
-// NEGATIVE_STOCK stays in the Anomaly union (types.ts, mirroring EVENTS.md
-// §8) but is not implemented here — stock doesn't exist until Step 12.
+// NEGATIVE_STOCK is implemented as of Step 12, now that inventory.ts folds
+// stock. Same shape as NEGATIVE_BALANCE and for the same reason: two devices
+// offline both sell the last bag of rice, both events are individually valid,
+// together they oversell. Neither write is blocked (EVENTS.md §8); the fold
+// goes negative and the shopkeeper sees both movements side by side.
 //
 // Zero I/O (AGENTS.md §3.1): the DUPLICATE_SUSPECTED window compares two
 // event timestamps already in the log to each other. No Date.now(), no
@@ -46,6 +49,27 @@ export const detectAnomalies: DetectAnomalies = (state, events) => {
         kind: 'NEGATIVE_BALANCE',
         customer_id: customerId,
         amount_poisha: balance.balance_poisha,
+        candidates,
+      });
+    }
+  }
+
+  // NEGATIVE_STOCK — the stock counterpart. A plain `< 0` comparison, not
+  // money.ts's isNegative(): quantity_units is not Poisha and must not be
+  // treated as money (KG and LITRE make fractional quantities legitimate).
+  for (const [productId, stock] of state.stock) {
+    if (stock.quantity_units < 0) {
+      const candidates = activeEvents.filter(
+        (event) =>
+          (event.type === 'STOCK_RECEIVED' ||
+            event.type === 'STOCK_SOLD' ||
+            event.type === 'STOCK_ADJUSTED') &&
+          event.payload.product_id === productId,
+      );
+      anomalies.push({
+        kind: 'NEGATIVE_STOCK',
+        product_id: productId,
+        quantity_units: stock.quantity_units,
         candidates,
       });
     }

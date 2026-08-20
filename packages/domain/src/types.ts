@@ -383,7 +383,21 @@ export type DomainErrorCode =
   | 'CUSTOMER_IS_ARCHIVED'
   | 'AMOUNT_NOT_POSITIVE'
   | 'AMOUNT_NOT_INTEGER'
-  | 'UNKNOWN_EVENT';
+  | 'UNKNOWN_EVENT'
+  // Inventory — EVENTS.md §4. Added Step 12 alongside the four commands in
+  // inventoryCommands.ts. Purely additive: no existing code is a `switch` over
+  // this union, so widening it cannot change any current behaviour.
+  | 'QUANTITY_NOT_POSITIVE'
+  | 'DELTA_IS_ZERO'
+  | 'NAME_EMPTY'
+  | 'THRESHOLD_NEGATIVE'
+  | 'INVALID_EXPIRY_DATE'
+  | 'NO_LINE_ITEMS'
+  | 'PAYMENT_METHOD_INCONSISTENT'
+  | 'CASH_PAID_OUT_OF_RANGE'
+  | 'CUSTOMER_REQUIRED_FOR_CREDIT'
+  | 'CREDIT_ENTRY_ID_REQUIRED'
+  | 'CONTEXT_COUNT_MISMATCH';
 
 /**
  * Errors are values in the domain layer (AGENTS.md §6) — commands return this,
@@ -448,6 +462,85 @@ export interface ArchiveCustomerCommand {
   readonly reason: CustomerArchiveReason;
 }
 
+// -----------------------------------------------------------------------------
+// Inventory commands — EVENTS.md §4. ADDED Step 12. Implementations live in
+// inventoryCommands.ts, not commands.ts. SHARED-file change, flagged in this
+// step's report rather than made silently.
+// -----------------------------------------------------------------------------
+
+/** Emits `PRODUCT_ADDED`. */
+export interface AddProductCommand {
+  readonly ctx: CommandContext;
+  readonly product_id: string;
+  readonly name: string;
+  readonly unit: ProductUnit;
+  readonly sale_price_poisha: Poisha | null;
+  /** 0 is meaningful — "tell me only when it runs out". Negative is rejected. */
+  readonly low_stock_threshold_units: number | null;
+}
+
+/** Emits `STOCK_RECEIVED`. */
+export interface ReceiveStockCommand {
+  readonly ctx: CommandContext;
+  readonly movement_id: string;
+  readonly product_id: string;
+  /** Positive. Not required to be an integer — KG and LITRE are real units. */
+  readonly quantity_units: number;
+  readonly cost_price_poisha: Poisha | null;
+  /** ISO `YYYY-MM-DD`, on the batch not the product. Recorded, never folded. */
+  readonly expiry_date: string | null;
+  readonly occurred_at: number | null;
+}
+
+/** Emits `STOCK_ADJUSTED`. */
+export interface AdjustStockCommand {
+  readonly ctx: CommandContext;
+  readonly movement_id: string;
+  readonly product_id: string;
+  /** Signed and non-zero. */
+  readonly delta_units: number;
+  readonly reason: StockAdjustmentReason;
+  readonly note: string | null;
+}
+
+/** One line of a sale. Becomes exactly one `STOCK_SOLD` event. */
+export interface SaleLineItem {
+  readonly movement_id: string;
+  readonly product_id: string;
+  readonly quantity_units: number;
+  readonly sale_price_poisha: Poisha;
+}
+
+/**
+ * Emits `SALE_RECORDED` + one `STOCK_SOLD` per line item + `CREDIT_GIVEN` when
+ * the cash paid falls short of the total (EVENTS.md §4). The single
+ * multi-event command in the system.
+ *
+ * `ctxs` is a LIST because every event needs its own `id`, `seq` and `hlc`, and
+ * `seq` is `UNIQUE (device_id, seq)` in the schema — the domain may not mint
+ * them (that is I/O, AGENTS.md §3.1) and may not derive `seq + 1` either,
+ * because the data layer, not the domain, owns sequence allocation. Call
+ * `saleEventCount(cmd)` to find out how many to supply; supplying the wrong
+ * number is a `CONTEXT_COUNT_MISMATCH` error, never a silent slice.
+ */
+export interface RecordSaleCommand {
+  readonly ctxs: readonly CommandContext[];
+  readonly sale_id: string;
+  /** null = walk-in cash sale. Required once any credit is outstanding. */
+  readonly customer_id: string | null;
+  /** What was agreed at the counter. NOT checked against the line items — EVENTS.md §4. */
+  readonly total_poisha: Poisha;
+  readonly payment_method: PaymentMethod;
+  readonly cash_paid_poisha: Poisha;
+  readonly line_items: readonly SaleLineItem[];
+  /** `entry_id` for the CREDIT_GIVEN. Required only when one is emitted. */
+  readonly credit_entry_id: string | null;
+  /** Carried onto the CREDIT_GIVEN, if any. */
+  readonly note: string | null;
+  /** Shared by every event the command emits — that is what makes them one sale. */
+  readonly occurred_at: number | null;
+}
+
 // =============================================================================
 // The viewmodel boundary (CONTRIBUTING.md §2).
 //
@@ -462,6 +555,23 @@ export interface ArchiveCustomerCommand {
  * Facts, not scores (AGENTS.md §4.8) — there is no severity field and never a
  * risk band, because the counter phone faces the customer.
  */
+/**
+ * Stock bucketing for a product row. ADDED Step 12.
+ *
+ * `apps/mobile/src/viewmodels/product.ts` declares a structurally identical
+ * union. That is not drift: that file has no imports by design (a viewmodel
+ * that needs `Poisha` or `Date` in scope has leaked a domain concern into the
+ * UI layer), so it cannot import this one, and the domain cannot import from
+ * `apps/mobile`. The domain is what produces the value; product.ts is what B
+ * renders it against. If either changes, both change, in the same commit — the
+ * same rule the Bengali/English key pairs follow.
+ *
+ * NEGATIVE < 0, OUT === 0, LOW when 0 < qty <= threshold, OK otherwise. A null
+ * threshold is never LOW. `inventory.ts`'s `stockLevel()` is the one
+ * implementation.
+ */
+export type StockLevel = 'OK' | 'LOW' | 'OUT' | 'NEGATIVE';
+
 export type AttentionReason =
   | { readonly kind: 'NO_ACTIVITY'; readonly days: number }
   | { readonly kind: 'BALANCE_NEGATIVE' }
@@ -478,6 +588,15 @@ export interface ViewModelFormatter {
   /** e.g. `12,34,567` — grouping and numeral script are B's concern. */
   money(amount: Poisha): string;
   days(count: number): string;
+  /**
+   * A bare integer in the user's numeral script, with no unit word: `৪৫`, not
+   * `৪৫ দিন`. ADDED Step 13 — the aging view and the daily summary both render
+   * plain counts (how many customers, how many entries), and without this the
+   * only way to get a number into the user's script was to call `days()` and
+   * strip the word off the end with a regex. That worked and was awful.
+   * SHARED-file change, flagged in Step 13's report.
+   */
+  count(value: number): string;
   quantity(count: number, unit: ProductUnit): string;
   unit(unit: ProductUnit): string;
   attention(reason: AttentionReason): string;
@@ -509,6 +628,23 @@ export type ApplyCorrection = (
 export type ApplyArchiveCustomer = (
   state: LedgerState,
   cmd: ArchiveCustomerCommand,
+) => AnyEvent[] | DomainError;
+
+// Inventory — EVENTS.md §4, added Step 12. Every one returns `AnyEvent[]`,
+// the shape every command has had since Step 2. `recordSale` is why that
+// return type was an array from the start rather than a single event.
+export type ApplyAddProduct = (state: LedgerState, cmd: AddProductCommand) => AnyEvent[] | DomainError;
+export type ApplyReceiveStock = (
+  state: LedgerState,
+  cmd: ReceiveStockCommand,
+) => AnyEvent[] | DomainError;
+export type ApplyAdjustStock = (
+  state: LedgerState,
+  cmd: AdjustStockCommand,
+) => AnyEvent[] | DomainError;
+export type ApplyRecordSale = (
+  state: LedgerState,
+  cmd: RecordSaleCommand,
 ) => AnyEvent[] | DomainError;
 
 /**

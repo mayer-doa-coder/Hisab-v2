@@ -17,3 +17,23 @@ export const subtract = (a: Poisha, b: Poisha): Poisha => (a - b) as Poisha;
 export const isNegative = (p: Poisha): boolean => p < 0;
 
 export const toDisplayTaka = (p: Poisha): string => (p / 100).toFixed(2);
+
+/**
+ * Totals a list of Poisha. Added Step 13 because the aging view and the daily
+ * summary both need a sum, and the alternative was a `+=` loop in
+ * apps/mobile/src/data/ — money arithmetic outside money.ts, which AGENTS.md
+ * §3.2 forbids. The eslint poishaArithmeticGuard would NOT have caught that
+ * loop (its selector matches identifiers ending in `_poisha`, and a local
+ * accumulator is called `total`), so the rule would have been broken silently.
+ * Aggregation is arithmetic; it belongs here.
+ */
+export const sumPoisha = (values: readonly Poisha[]): Poisha => {
+  let total = 0;
+  for (const value of values) {
+    total += value;
+  }
+  return total as Poisha;
+};
+
+/** |a - b|. Same reason as sumPoisha: the daily summary needs a magnitude. */
+export const absDiff = (a: Poisha, b: Poisha): Poisha => Math.abs(a - b) as Poisha;

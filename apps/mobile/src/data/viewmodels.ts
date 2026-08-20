@@ -1,14 +1,23 @@
 // viewmodels.ts — maps projection rows into CustomerRowVM (Step 2's exact
-// shape). needsAttention/attentionReason are stubbed false/null here —
-// confirmed in this step's report: real overdue rules are Step 12's job and
-// need data (terms, patterns) that doesn't exist yet. Building a partial
-// version now would just be a second implementation Step 12 has to
-// reconcile with.
+// shape).
+//
+// needsAttention/attentionReason were stubbed false/null from Step 7 until
+// Step 12. They are now real, and the rule they call is in the domain
+// (packages/domain/src/attention.ts), not here — customer.ts's header is
+// explicit that B "never decides who is overdue".
+//
+// The rule is NOT the "overdue" rule Step 7's TODO anticipated, because there
+// is nothing to be overdue against: CUSTOMER_ADDED carries display_name and an
+// optional phone and nothing else, and adding credit_limit or terms_days is a
+// data-minimisation violation (SECURITY.md §6), not a missing feature. What
+// ships instead is: outstanding balance + idle for a while = say so. See
+// attention.ts for the full reasoning and the untuned threshold.
 //
 // Money/day formatting goes through the already-defined ViewModelFormatter
 // (packages/domain's viewmodel boundary, Step 2) — this file never formats a
 // Poisha value itself, matching "B does no money arithmetic."
 
+import { customerAttention } from '@hisab/domain';
 import type { Poisha, ViewModelFormatter } from '@hisab/domain';
 import type { CustomerRowVM } from '../viewmodels/customer';
 
@@ -39,6 +48,14 @@ export function toCustomerRowVM(
   // separate boolean, and that's a shared-contract decision, not a
   // apps/mobile/src/data/ one to make alone.
 
+  // The domain picks the fact; format.attention() writes the Bengali
+  // (AGENTS.md §4.8 — facts, not scores). A null reason is the normal case:
+  // most customers, most days, need nothing said about them.
+  const reason = customerAttention(
+    { balance_poisha: balancePoisha, last_activity_at: row.last_activity_at },
+    now,
+  );
+
   return {
     id: row.id,
     displayName: row.display_name,
@@ -46,10 +63,8 @@ export function toCustomerRowVM(
     balanceDisplay: format.money(balancePoisha),
     balancePoisha: row.balance_poisha ?? 0,
     daysSinceActivityDisplay: format.days(daysSince ?? 0),
-    // Stubbed — Step 12 builds the real overdue rule against real pilot
-    // data (terms, activity patterns). Do not half-implement here.
-    needsAttention: false,
-    attentionReason: null,
+    needsAttention: reason !== null,
+    attentionReason: reason === null ? null : format.attention(reason),
     syncPending,
   };
 }

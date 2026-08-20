@@ -18,8 +18,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "allowBackup": false,
-      "usesCleartextTraffic": false
+      "allowBackup": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -31,10 +30,16 @@
           "android": {
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
-            "buildArchs": ["arm64-v8a"]
+            "buildArchs": [
+              "arm64-v8a"
+            ],
+            "usesCleartextTraffic": false
           }
         }
-      ]
+      ],
+      "expo-font",
+      "expo-secure-store",
+      "expo-sqlite"
     ]
   }
 }

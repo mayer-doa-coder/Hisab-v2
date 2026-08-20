@@ -51,6 +51,22 @@ void test('toCustomerRowVM defaults balance to 0 when no balance row exists', ()
   assert.equal(vm.balanceDisplay, 'TK0');
 });
 
+void test('REGRESSION: a customer who has never had any activity shows no day count, not "0 days"', () => {
+  // Found during a whole-project audit: this used to fall back to
+  // `daysSince ?? 0`, rendering "0 days" — read as "something happened
+  // today" — for a customer with CUSTOMER_ADDED but no
+  // CREDIT_GIVEN/PAYMENT_RECEIVED yet. Empty string is the same convention
+  // AgingRowVM already uses for "never," which every screen already branches
+  // on `!== ''` to hide.
+  const vm = toCustomerRowVM(
+    { id: 'c1', display_name: 'Rahim', phone: null, balance_poisha: null, last_activity_at: null },
+    1_000,
+    fakeFormat,
+    false,
+  );
+  assert.equal(vm.daysSinceActivityDisplay, '');
+});
+
 // ---------------------------------------------------------------------------
 // needsAttention / attentionReason. These were stubbed false/null from Step 7
 // until Step 12; the test that used to live here asserted the stub. It now

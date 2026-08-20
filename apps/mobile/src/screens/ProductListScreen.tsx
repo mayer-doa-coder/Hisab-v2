@@ -15,7 +15,9 @@ import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../ui/Button';
 import { Row } from '../ui/Row';
 import { SyncDot } from '../ui/Card';
+import { EmptyState } from '../ui/EmptyState';
 import { fontFamily, fontSize, spacing } from '../ui/typography';
+import { colors } from '../ui/colors';
 import { t, type Locale } from '../i18n';
 import type { ProductRowVM } from '../viewmodels/product';
 
@@ -37,10 +39,10 @@ export function ProductListScreen({
       <Text style={styles.title}>{t(locale, 'products', 'productsTitle')}</Text>
 
       {rows.length === 0 ? (
-        <View style={styles.emptyBlock}>
-          <Text style={styles.emptyHeadline}>{t(locale, 'products', 'noProducts')}</Text>
-          <Text style={styles.emptyHint}>{t(locale, 'products', 'noProductsHint')}</Text>
-        </View>
+        <EmptyState
+          headline={t(locale, 'products', 'noProducts')}
+          hint={t(locale, 'products', 'noProductsHint')}
+        />
       ) : (
         <FlatList
           data={rows}
@@ -80,7 +82,7 @@ export function ProductListScreen({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F6F8F7',
+    backgroundColor: colors.screenBackground,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
@@ -88,7 +90,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.lg,
-    color: '#14231C',
+    color: colors.textPrimary,
     lineHeight: fontSize.lg * 1.5,
     textAlign: 'left',
     marginBottom: spacing.sm,
@@ -103,25 +105,10 @@ const styles = StyleSheet.create({
   price: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.md,
-    color: '#14231C',
+    color: colors.textPrimary,
     textAlign: 'right',
   },
   action: {
     marginTop: spacing.sm,
-  },
-  emptyBlock: { flex: 1, justifyContent: 'center' },
-  emptyHeadline: {
-    fontFamily: fontFamily.bold,
-    fontSize: fontSize.lg,
-    color: '#14231C',
-    lineHeight: fontSize.lg * 1.5,
-    textAlign: 'left',
-  },
-  emptyHint: {
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.md,
-    color: '#5B6B62',
-    lineHeight: fontSize.md * 1.6,
-    textAlign: 'left',
   },
 });

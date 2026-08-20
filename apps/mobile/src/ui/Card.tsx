@@ -12,6 +12,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { spacing } from './typography';
+import { colors } from './colors';
 
 export interface CardProps {
   children: ReactNode;
@@ -39,21 +40,21 @@ export function SyncDot({ pending }: { pending: boolean }) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderRadius: 16,
     paddingVertical: spacing.sm,
     borderWidth: 1,
-    borderColor: '#E4EAE7',
+    borderColor: colors.borderLight,
   },
   divider: {
     height: 1,
-    backgroundColor: '#EDF1EF',
+    backgroundColor: colors.divider,
     marginHorizontal: spacing.md,
   },
   syncDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#B4BFB9',
+    backgroundColor: colors.syncDot,
   },
 });

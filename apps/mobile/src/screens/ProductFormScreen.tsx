@@ -27,8 +27,9 @@
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button } from '../ui/Button';
 import { fontFamily, fontSize, minTouchTarget, spacing } from '../ui/typography';
+import { colors } from '../ui/colors';
 import { t, type Locale } from '../i18n';
-import type { ProductUnit } from '@hisab/domain';
+import type { ProductUnit, ViewModelFormatter } from '@hisab/domain';
 
 /**
  * The editable draft. Text fields are STRINGS, not numbers: a half-typed "1."
@@ -52,22 +53,19 @@ export const EMPTY_PRODUCT_DRAFT: ProductDraft = {
 
 const UNITS: readonly ProductUnit[] = ['PIECE', 'KG', 'GRAM', 'LITRE', 'ML', 'PACKET', 'DOZEN'];
 
-const UNIT_KEYS = {
-  PIECE: 'unitPiece',
-  KG: 'unitKg',
-  GRAM: 'unitGram',
-  LITRE: 'unitLitre',
-  ML: 'unitMl',
-  PACKET: 'unitPacket',
-  DOZEN: 'unitDozen',
-} as const satisfies Record<ProductUnit, string>;
-
 export interface ProductFormScreenProps {
   draft: ProductDraft;
   onChange: (draft: ProductDraft) => void;
   onSubmit: () => void;
   onCancel: () => void;
   locale: Locale;
+  /**
+   * FIXED — found during a whole-project audit: this screen used to keep its
+   * own byte-for-byte copy of `formatter.ts`'s `UNIT_KEYS` table just to
+   * render a unit label, instead of taking the formatter every other screen
+   * already receives. One table, not two.
+   */
+  format: ViewModelFormatter;
   /** True when editing an existing product — changes the title only. */
   isEdit?: boolean;
   /** A DomainError already turned into a string by the caller. */
@@ -80,6 +78,7 @@ export function ProductFormScreen({
   onSubmit,
   onCancel,
   locale,
+  format,
   isEdit = false,
   errorMessage = null,
 }: ProductFormScreenProps) {
@@ -99,7 +98,7 @@ export function ProductFormScreen({
             value={draft.name}
             onChangeText={(name) => onChange({ ...draft, name })}
             placeholder={t(locale, 'products', 'namePlaceholder')}
-            placeholderTextColor="#9AA8A1"
+            placeholderTextColor={colors.placeholder}
             autoFocus
             accessibilityLabel={t(locale, 'products', 'nameLabel')}
           />
@@ -120,7 +119,7 @@ export function ProductFormScreen({
                   style={[styles.chip, selected && styles.chipSelected]}
                 >
                   <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>
-                    {t(locale, 'products', UNIT_KEYS[unit])}
+                    {format.unit(unit)}
                   </Text>
                 </Pressable>
               );
@@ -134,7 +133,7 @@ export function ProductFormScreen({
             value={draft.priceText}
             onChangeText={(priceText) => onChange({ ...draft, priceText })}
             placeholder={t(locale, 'products', 'pricePlaceholder')}
-            placeholderTextColor="#9AA8A1"
+            placeholderTextColor={colors.placeholder}
             keyboardType="numeric"
             accessibilityLabel={t(locale, 'products', 'priceLabel')}
           />
@@ -149,7 +148,7 @@ export function ProductFormScreen({
             value={draft.thresholdText}
             onChangeText={(thresholdText) => onChange({ ...draft, thresholdText })}
             placeholder={t(locale, 'products', 'thresholdPlaceholder')}
-            placeholderTextColor="#9AA8A1"
+            placeholderTextColor={colors.placeholder}
             keyboardType="numeric"
             accessibilityLabel={t(locale, 'products', 'thresholdLabel')}
           />
@@ -201,7 +200,7 @@ function Field({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F6F8F7',
+    backgroundColor: colors.screenBackground,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
@@ -210,7 +209,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.lg,
-    color: '#14231C',
+    color: colors.textPrimary,
     lineHeight: fontSize.lg * 1.5,
     textAlign: 'left',
     marginBottom: spacing.sm,
@@ -219,27 +218,27 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.7,
     textAlign: 'left',
     marginBottom: spacing.xs,
   },
   input: {
     minHeight: minTouchTarget,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: '#D8E1DD',
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: spacing.md,
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#14231C',
+    color: colors.textPrimary,
     textAlign: 'left',
   },
   help: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.6,
     marginTop: spacing.xs,
     textAlign: 'left',
@@ -247,7 +246,7 @@ const styles = StyleSheet.create({
   error: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.sm,
-    color: '#8A3B2A',
+    color: colors.error,
     lineHeight: fontSize.sm * 1.6,
     marginTop: spacing.md,
     textAlign: 'left',
@@ -262,17 +261,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     justifyContent: 'center',
     borderRadius: 12,
-    backgroundColor: '#E9EEEC',
+    backgroundColor: colors.surfaceSecondary,
   },
-  chipSelected: { backgroundColor: '#1B6E4A' },
+  chipSelected: { backgroundColor: colors.accent },
   chipLabel: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#14231C',
+    color: colors.textPrimary,
   },
   chipLabelSelected: {
     fontFamily: fontFamily.bold,
-    color: '#FFFFFF',
+    color: colors.white,
   },
   actions: {
     flexDirection: 'row',

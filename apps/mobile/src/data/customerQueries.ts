@@ -37,6 +37,28 @@ async function unsyncedCustomerIds(db: Database): Promise<Set<string>> {
   return ids;
 }
 
+/**
+ * Scoped to ONE customer via an indexed lookup, not the shop-wide scan
+ * `unsyncedCustomerIds` runs — added during a whole-project audit:
+ * `getCustomerRow` (below) used to build the full unsynced set purely to
+ * check `.has(row.id)` for a single customer, an unbounded full-table scan
+ * to answer one boolean, run twice in CoreFlow's credit-entry confirm path
+ * plus once more on every CustomerDetailScreen load. `LIMIT 1` and an
+ * `EXISTS`-shaped query stay O(this customer's own events), not O(every
+ * pending write shop-wide).
+ */
+async function isCustomerUnsynced(db: Database, customerId: string): Promise<boolean> {
+  const rows = await db.getAllAsync<{ found: number }>(
+    `SELECT 1 AS found
+       FROM events e LEFT JOIN sync_state s ON s.event_id = e.id
+      WHERE e.synced_at IS NULL AND s.event_id IS NULL
+        AND json_extract(e.payload, '$.customer_id') = ?
+      LIMIT 1`,
+    [customerId],
+  );
+  return rows.length > 0;
+}
+
 interface CustomerListRow extends SqlRow {
   id: string;
   display_name: string;
@@ -77,8 +99,8 @@ export async function getCustomerRow(
   );
   const row = rows[0];
   if (row === undefined) return null;
-  const pending = await unsyncedCustomerIds(db);
-  return toCustomerRowVM(row as CustomerProjectionRow, now, format, pending.has(row.id));
+  const pending = await isCustomerUnsynced(db, row.id);
+  return toCustomerRowVM(row as CustomerProjectionRow, now, format, pending);
 }
 
 interface RecentActivityRow extends SqlRow {
@@ -96,11 +118,30 @@ const RECENT_ACTIVITY_LIMIT = 8;
  * list Home has no use for; Home needs one number and a short recent list.
  */
 export async function getHomeVM(db: Database, format: ViewModelFormatter): Promise<HomeVM> {
+  // FIXED — found during a whole-project audit, two bugs in the same query:
+  //   1. No join to `customers`/no `archived = 0` filter, unlike every other
+  //      query in this file — a customer archived while still owing money
+  //      (archiveCustomer.ts never checks the balance is zero) kept
+  //      inflating this total forever, with no screen left to explain it.
+  //   2. `WHERE balance_poisha > 0` counted only positive balances, while
+  //      buildAgingVM's identically-named/documented field
+  //      (`owedByCountDisplay`, "count of customers with a non-zero
+  //      balance") counts ANY non-zero balance, including negative ones —
+  //      so Home and Aging disagreed about how many customers "have a
+  //      balance" for the exact same underlying data. Matching AgingVM's
+  //      convention here: query every non-archived non-zero balance, then
+  //      split in TypeScript — the total sums only positive ones (money
+  //      over-recorded is not money owed), the count includes both.
   const balanceRows = await db.getAllAsync<{ balance_poisha: number }>(
-    'SELECT balance_poisha FROM balances WHERE balance_poisha > 0',
+    `SELECT b.balance_poisha
+       FROM balances b JOIN customers c ON c.id = b.customer_id
+      WHERE b.balance_poisha != 0 AND c.archived = 0`,
     [],
   );
-  const total = sumPoisha(balanceRows.map((row) => row.balance_poisha as Poisha));
+  const positiveBalances = balanceRows
+    .map((row) => row.balance_poisha as Poisha)
+    .filter((balance) => balance > 0);
+  const total = sumPoisha(positiveBalances);
 
   const activityRows = await db.getAllAsync<RecentActivityRow>(
     `SELECT e.id, e.type, c.display_name AS display_name,

@@ -63,8 +63,10 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../ui/Button';
 import { Card, Divider, SyncDot } from '../ui/Card';
+import { EmptyState } from '../ui/EmptyState';
 import { useScreenSecure } from '../security/screenSecure';
 import { fontFamily, fontSize, minTouchTarget, spacing } from '../ui/typography';
+import { colors } from '../ui/colors';
 import { t, type Locale } from '../i18n';
 import type { AgingRowVM, AgingVM } from '../viewmodels/screens';
 
@@ -82,10 +84,10 @@ export function AgingScreen({ vm, locale, onSelectCustomer }: AgingScreenProps) 
     return (
       <View style={styles.screen}>
         <Text style={styles.title}>{t(locale, 'customers', 'agingTitle')}</Text>
-        <View style={styles.emptyBlock}>
-          <Text style={styles.emptyHeadline}>{t(locale, 'customers', 'nothingOwed')}</Text>
-          <Text style={styles.emptyHint}>{t(locale, 'customers', 'nothingOwedHint')}</Text>
-        </View>
+        <EmptyState
+          headline={t(locale, 'customers', 'nothingOwed')}
+          hint={t(locale, 'customers', 'nothingOwedHint')}
+        />
       </View>
     );
   }
@@ -221,7 +223,7 @@ function AgingRow({ row, onPress }: { row: AgingRowVM; onPress?: (id: string) =>
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F6F8F7',
+    backgroundColor: colors.screenBackground,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
@@ -229,7 +231,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#5B6B62',
+    color: colors.textMuted,
     textAlign: 'left',
     // Bengali needs more vertical room than Latin — ascenders, descenders,
     // the matra and conjuncts (UI_SPEC.md "Bengali interface rules").
@@ -241,21 +243,21 @@ const styles = StyleSheet.create({
   totalLabel: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.6,
     textAlign: 'left',
   },
   totalAmount: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.amount,
-    color: '#14231C',
+    color: colors.textPrimary,
     includeFontPadding: false,
     textAlign: 'left',
   },
   totalSub: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.6,
     textAlign: 'left',
   },
@@ -265,7 +267,7 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.7,
     marginBottom: spacing.xs,
     textAlign: 'left',
@@ -289,7 +291,7 @@ const styles = StyleSheet.create({
   rowName: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#14231C',
+    color: colors.textPrimary,
     lineHeight: fontSize.md * 1.5,
     textAlign: 'left',
     flexShrink: 1,
@@ -299,21 +301,21 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     // Muted, never coloured by severity. This is the line most at risk of
     // becoming a risk badge; it stays one neutral grey forever.
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.6,
     textAlign: 'left',
   },
   rowAmount: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.lg,
-    color: '#14231C',
+    color: colors.textPrimary,
     includeFontPadding: false,
     textAlign: 'right',
   },
   moreNote: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     paddingTop: spacing.xs,
     paddingHorizontal: spacing.md,
     textAlign: 'left',
@@ -321,7 +323,7 @@ const styles = StyleSheet.create({
   footnote: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.6,
     paddingTop: spacing.xs,
     paddingHorizontal: spacing.md,
@@ -334,7 +336,7 @@ const styles = StyleSheet.create({
   restNote: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.6,
     paddingBottom: spacing.sm,
     textAlign: 'left',
@@ -350,23 +352,5 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.6,
-  },
-  emptyBlock: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  emptyHeadline: {
-    fontFamily: fontFamily.bold,
-    fontSize: fontSize.lg,
-    color: '#14231C',
-    lineHeight: fontSize.lg * 1.5,
-    textAlign: 'left',
-  },
-  emptyHint: {
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.md,
-    color: '#5B6B62',
-    lineHeight: fontSize.md * 1.6,
-    textAlign: 'left',
   },
 });

@@ -13,7 +13,9 @@
 
 import { StyleSheet, Text, View } from 'react-native';
 import { Card, Divider } from '../ui/Card';
+import { EmptyState } from '../ui/EmptyState';
 import { fontFamily, fontSize, spacing } from '../ui/typography';
+import { colors } from '../ui/colors';
 import { t, type Locale } from '../i18n';
 import type { DailySummaryVM } from '../viewmodels/screens';
 
@@ -36,10 +38,10 @@ export function DailySummaryScreen({ vm, locale }: DailySummaryScreenProps) {
       <Text style={styles.date}>{vm.dateDisplay}</Text>
 
       {vm.isEmpty ? (
-        <View style={styles.emptyBlock}>
-          <Text style={styles.emptyHeadline}>{t(locale, 'summary', 'nothingToday')}</Text>
-          <Text style={styles.emptyHint}>{t(locale, 'summary', 'nothingTodayHint')}</Text>
-        </View>
+        <EmptyState
+          headline={t(locale, 'summary', 'nothingToday')}
+          hint={t(locale, 'summary', 'nothingTodayHint')}
+        />
       ) : (
         <>
           {/* The headline pair: what went out on credit, what came back in. */}
@@ -92,21 +94,21 @@ function StatLine({ label, value, big = false }: { label: string; value: string;
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F6F8F7',
+    backgroundColor: colors.screenBackground,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.lg,
   },
   title: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.lg,
-    color: '#14231C',
+    color: colors.textPrimary,
     lineHeight: fontSize.lg * 1.5,
     textAlign: 'left',
   },
   date: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.6,
     textAlign: 'left',
   },
@@ -124,7 +126,7 @@ const styles = StyleSheet.create({
   statLabel: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.md * 1.5,
     textAlign: 'left',
     flexShrink: 1,
@@ -132,37 +134,22 @@ const styles = StyleSheet.create({
   statValue: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.lg,
-    color: '#14231C',
+    color: colors.textPrimary,
     textAlign: 'right',
   },
   statValueBig: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.xl,
-    color: '#14231C',
+    color: colors.textPrimary,
     includeFontPadding: false,
     textAlign: 'right',
   },
   footnote: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.6,
     paddingTop: spacing.sm,
-    textAlign: 'left',
-  },
-  emptyBlock: { flex: 1, justifyContent: 'center' },
-  emptyHeadline: {
-    fontFamily: fontFamily.bold,
-    fontSize: fontSize.lg,
-    color: '#14231C',
-    lineHeight: fontSize.lg * 1.5,
-    textAlign: 'left',
-  },
-  emptyHint: {
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.md,
-    color: '#5B6B62',
-    lineHeight: fontSize.md * 1.6,
     textAlign: 'left',
   },
 });

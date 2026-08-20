@@ -6,6 +6,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { fontFamily, fontSize, minTouchTarget, spacing } from './typography';
+import { colors } from './colors';
 
 export interface RowProps {
   title: string;
@@ -63,13 +64,13 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#14231C',
+    color: colors.textPrimary,
     textAlign: 'left',
   },
   subtitle: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     textAlign: 'left',
     marginTop: 2,
   },

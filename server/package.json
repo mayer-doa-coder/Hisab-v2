@@ -22,6 +22,7 @@
     "typecheck": "tsc --noEmit",
     "pretest": "npm run build --prefix ../packages/domain",
     "test": "tsc -p test/tsconfig.json && node test/fix-dist-extensions.mjs && node --test --test-concurrency=1 dist/server/test/*.test.js",
+    "pretest:ci": "npm run build --prefix ../packages/domain",
     "test:ci": "tsc -p test/tsconfig.json && node test/fix-dist-extensions.mjs && node --test --test-concurrency=1 --test-reporter=tap dist/server/test/*.test.js",
     "build": "tsc -p tsconfig.build.json && node test/fix-dist-extensions.mjs",
     "prestart": "npm run build",

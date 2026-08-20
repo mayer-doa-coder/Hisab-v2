@@ -15,6 +15,7 @@
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { fontFamily, fontSize, minTouchTarget, spacing } from '../ui/typography';
+import { colors } from '../ui/colors';
 
 export interface TabDefinition {
   readonly key: string;
@@ -71,13 +72,13 @@ export function AppShell({ tabs, initialKey }: AppShellProps) {
 }
 
 const styles = StyleSheet.create({
-  shell: { flex: 1, backgroundColor: '#F6F8F7' },
+  shell: { flex: 1, backgroundColor: colors.screenBackground },
   body: { flex: 1 },
   tabBar: {
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: '#DFE7E3',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
   },
   tab: {
     flex: 1,
@@ -90,11 +91,11 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.6,
   },
   tabLabelSelected: {
     fontFamily: fontFamily.bold,
-    color: '#1B6E4A',
+    color: colors.accent,
   },
 });

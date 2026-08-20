@@ -12,6 +12,7 @@
     "server"
   ],
   "scripts": {
+    "postinstall": "npm run build -w packages/domain",
     "test": "npm test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint .",

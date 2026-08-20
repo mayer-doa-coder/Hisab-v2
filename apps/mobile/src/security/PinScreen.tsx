@@ -34,6 +34,7 @@ import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Keypad, type KeypadKey } from '../ui/Keypad';
 import { fontFamily, fontSize, spacing } from '../ui/typography';
+import { colors } from '../ui/colors';
 import { DEFAULT_PIN_LENGTH, type PinResult, type PinSession } from './pinSession';
 
 type Mode = 'ENTER' | 'SET' | 'CONFIRM';
@@ -192,7 +193,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
     padding: spacing.md,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
   },
   // UI_SPEC.md: "All primary actions in the lower half of the screen. Top is
   // read-only." The keypad is at the bottom; the prompt and dots are the
@@ -204,7 +205,7 @@ const styles = StyleSheet.create({
   prompt: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.lg,
-    color: '#14231C',
+    color: colors.textPrimary,
     // Bengali needs more vertical room than Latin (AGENTS.md §6).
     lineHeight: fontSize.lg * 1.6,
   },
@@ -218,16 +219,16 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 8,
     borderWidth: 2,
-    borderColor: '#1B6E4A',
+    borderColor: colors.accent,
   },
   dotFilled: {
-    backgroundColor: '#1B6E4A',
+    backgroundColor: colors.accent,
   },
   message: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
     lineHeight: fontSize.md * 1.6,
-    color: '#8A3324',
+    color: colors.error,
     marginTop: spacing.md,
     minHeight: fontSize.md * 1.6, // reserved, so the keypad never shifts under the thumb
   },

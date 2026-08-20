@@ -16,6 +16,7 @@ import { Keypad, type KeypadKey } from '../ui/Keypad';
 import { Row } from '../ui/Row';
 import { Sheet } from '../ui/Sheet';
 import { fontFamily, fontSize, spacing } from '../ui/typography';
+import { colors } from '../ui/colors';
 import { t, type Locale } from '../i18n';
 import type { NumeralScript } from '../ui/formatDigits';
 
@@ -111,7 +112,7 @@ const styles = StyleSheet.create({
   heading: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.xl,
-    color: '#14231C',
+    color: colors.textPrimary,
     textAlign: 'left',
   },
   section: {
@@ -120,7 +121,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     textAlign: 'left',
   },
   row: {
@@ -133,6 +134,6 @@ const styles = StyleSheet.create({
   sheetText: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#14231C',
+    color: colors.textPrimary,
   },
 });

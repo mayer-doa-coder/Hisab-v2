@@ -33,9 +33,9 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { CustomerArchiveReason } from '@hisab/domain';
 import { fontFamily, fontSize, minTouchTarget, spacing } from '../ui/typography';
+import { colors } from '../ui/colors';
 import { archiveCustomer, type ArchiveCustomerResult } from './archiveCustomer';
 import type { EventStore } from './eventStore';
-import type { Database } from './db';
 
 const REASONS: readonly CustomerArchiveReason[] = ['DUPLICATE', 'INACTIVE', 'REQUESTED'];
 
@@ -48,7 +48,6 @@ export interface ArchiveCustomerActionStrings {
 }
 
 export interface ArchiveCustomerActionProps {
-  readonly db: Database;
   readonly store: EventStore;
   readonly customerId: string;
   readonly strings: ArchiveCustomerActionStrings;
@@ -56,7 +55,6 @@ export interface ArchiveCustomerActionProps {
 }
 
 export function ArchiveCustomerAction({
-  db,
   store,
   customerId,
   strings,
@@ -70,7 +68,7 @@ export function ArchiveCustomerAction({
     setBusy(true);
     setError(null);
     try {
-      const result: ArchiveCustomerResult = await archiveCustomer(db, store, customerId, reason);
+      const result: ArchiveCustomerResult = await archiveCustomer(store, customerId, reason);
       if (result.kind === 'OK') {
         onArchived();
         return;
@@ -79,7 +77,7 @@ export function ArchiveCustomerAction({
     } finally {
       setBusy(false);
     }
-  }, [db, store, customerId, reason, onArchived, strings]);
+  }, [store, customerId, reason, onArchived, strings]);
 
   return (
     <View style={styles.container}>
@@ -119,7 +117,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
     lineHeight: fontSize.md * 1.6,
-    color: '#14231C',
+    color: colors.textPrimary,
   },
   reasons: { gap: spacing.xs },
   reasonRow: {
@@ -131,30 +129,30 @@ const styles = StyleSheet.create({
     borderColor: '#D8DED9',
   },
   reasonRowSelected: {
-    borderColor: '#1B6E4A',
-    backgroundColor: '#F1F4F2',
+    borderColor: colors.accent,
+    backgroundColor: colors.keypadKey,
   },
   reasonLabel: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#14231C',
+    color: colors.textPrimary,
   },
   error: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#8A3324',
+    color: colors.error,
   },
   confirmButton: {
     minHeight: minTouchTarget,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
-    backgroundColor: '#8A3324',
+    backgroundColor: colors.error,
   },
   disabled: { opacity: 0.6 },
   confirmLabel: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.md,
-    color: '#FFFFFF',
+    color: colors.white,
   },
 });

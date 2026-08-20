@@ -7,6 +7,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../ui/Button';
 import { Card, Divider } from '../ui/Card';
 import { fontFamily, fontSize, spacing } from '../ui/typography';
+import { colors } from '../ui/colors';
 import { t, type Locale } from '../i18n';
 import { getHomeVM } from '../data/customerQueries';
 import type { Database } from '../data/db';
@@ -105,7 +106,7 @@ function ActivityRow({ row, locale }: { row: RecentActivityRowVM; locale: Locale
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F6F8F7',
+    backgroundColor: colors.screenBackground,
   },
   content: {
     paddingHorizontal: spacing.md,
@@ -116,21 +117,21 @@ const styles = StyleSheet.create({
   totalLabel: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.6,
     textAlign: 'left',
   },
   totalAmount: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.amount,
-    color: '#14231C',
+    color: colors.textPrimary,
     includeFontPadding: false,
     textAlign: 'left',
   },
   totalSub: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.6,
     textAlign: 'left',
   },
@@ -138,13 +139,13 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     fontFamily: fontFamily.bold,
     fontSize: fontSize.sm,
-    color: '#1B6E4A',
+    color: colors.accent,
   },
   section: { marginTop: spacing.lg },
   sectionHeader: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.7,
     marginBottom: spacing.xs,
     textAlign: 'left',
@@ -160,19 +161,19 @@ const styles = StyleSheet.create({
   activityName: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#14231C',
+    color: colors.textPrimary,
     textAlign: 'left',
   },
   activityKind: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     textAlign: 'left',
   },
   activityAmount: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.md,
-    color: '#14231C',
+    color: colors.textPrimary,
     textAlign: 'right',
   },
   actions: {

@@ -33,6 +33,15 @@ export interface CommonStrings {
   pinMismatch: string;
   pinIncorrect: string;
   pinLocked: string;
+
+  /**
+   * Generic write failure (Step 14: CoreFlow.tsx's record-credit/payment and
+   * add-customer confirm handlers). Facts, not scores — no error code, no
+   * blame, just "that didn't work, try again." Deliberately vague: the
+   * underlying `VALIDATION_ERROR` carries no further detail to show (see
+   * customerCommands.ts).
+   */
+  actionFailed: string;
 }
 
 export const common: CommonStrings = {
@@ -54,4 +63,6 @@ export const common: CommonStrings = {
   pinMismatch: 'দুইবার একই পিন হয়নি',
   pinIncorrect: 'পিন মেলেনি',
   pinLocked: 'একটু পরে আবার চেষ্টা করুন',
+
+  actionFailed: 'হয়নি, আবার চেষ্টা করুন',
 };

@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button } from '../ui/Button';
 import { fontFamily, fontSize, minTouchTarget, spacing } from '../ui/typography';
+import { colors } from '../ui/colors';
 import { t, type Locale } from '../i18n';
 
 export interface AddCustomerDraft {
@@ -53,7 +54,7 @@ export function AddCustomerScreen({
             value={draft.name}
             onChangeText={(name) => onChange({ ...draft, name })}
             placeholder={t(locale, 'customers', 'namePlaceholder')}
-            placeholderTextColor="#9AA8A1"
+            placeholderTextColor={colors.placeholder}
             autoFocus
             accessibilityLabel={t(locale, 'customers', 'namePlaceholder')}
           />
@@ -66,7 +67,7 @@ export function AddCustomerScreen({
             value={draft.phone}
             onChangeText={(phone) => onChange({ ...draft, phone })}
             placeholder={t(locale, 'customers', 'phoneOptionalPlaceholder')}
-            placeholderTextColor="#9AA8A1"
+            placeholderTextColor={colors.placeholder}
             keyboardType="phone-pad"
             accessibilityLabel={t(locale, 'customers', 'phoneOptionalPlaceholder')}
           />
@@ -96,7 +97,7 @@ export function AddCustomerScreen({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F6F8F7',
+    backgroundColor: colors.screenBackground,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
@@ -105,7 +106,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.lg,
-    color: '#14231C',
+    color: colors.textPrimary,
     lineHeight: fontSize.lg * 1.5,
     textAlign: 'left',
     marginBottom: spacing.md,
@@ -113,20 +114,20 @@ const styles = StyleSheet.create({
   field: { marginTop: spacing.md },
   input: {
     minHeight: minTouchTarget,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: '#D8E1DD',
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: spacing.md,
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#14231C',
+    color: colors.textPrimary,
     textAlign: 'left',
   },
   help: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.6,
     marginTop: spacing.xs,
     textAlign: 'left',
@@ -134,7 +135,7 @@ const styles = StyleSheet.create({
   error: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.sm,
-    color: '#8A3B2A',
+    color: colors.error,
     lineHeight: fontSize.sm * 1.6,
     marginTop: spacing.md,
     textAlign: 'left',

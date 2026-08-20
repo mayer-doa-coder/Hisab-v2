@@ -24,6 +24,7 @@ import {
   absDiff,
   customerAttention,
   customerHistory,
+  daysSince,
   expiryRisks,
   productAttention,
   stockLevel,
@@ -63,8 +64,6 @@ import type {
  * change once a real shop has used it.
  */
 export const ATTENTION_ROW_CAP = 5;
-
-const DAY_MS = 86_400_000;
 
 // ---------------------------------------------------------------------------
 // Aging view
@@ -135,7 +134,7 @@ export function buildAgingVM(
 
     const lastActivityAt = balanceState?.last_activity_at ?? null;
     const reason = customerAttention({ balance_poisha: balance, last_activity_at: lastActivityAt }, now);
-    const idleDays = lastActivityAt === null ? 0 : Math.floor((now - lastActivityAt) / DAY_MS);
+    const idleDays = lastActivityAt === null ? 0 : daysSince(lastActivityAt, now);
 
     withBalance.push({
       reason,
@@ -249,36 +248,41 @@ export function buildAlertsVM(
   now: number,
   format: ViewModelFormatter,
 ): AlertsVM {
-  const stockAlerts: StockAlertVM[] = [];
+  // Negative stock first (a count that does not add up needs resolving), then
+  // out, then low. Within a bucket, by name, so the order is total.
+  //
+  // `bucket` is computed ONCE per product here, alongside the row itself —
+  // mirroring buildAgingVM's own Candidate pattern just above in this file.
+  // FIXED — found during a whole-project audit: this used to call
+  // productAttention() a second time per product inside the sort
+  // comparator (bucketOf), recomputing the exact same classification
+  // Array.sort had already paid for once per row here — O(n log n) wasted
+  // domain calls for a value already sitting on the row.
+  const severityOrder = { STOCK_NEGATIVE: 0, STOCK_OUT: 1, STOCK_LOW: 2 } as const;
+  const candidates: { bucket: number; name: string; row: StockAlertVM }[] = [];
 
   for (const product of state.products.values()) {
     const stock = state.stock.get(product.id);
     const reason = productAttention(product, stock); // the domain decides, not this file
     if (reason === null) continue;
-    stockAlerts.push({
-      id: product.id,
+    const bucket = reason.kind in severityOrder ? severityOrder[reason.kind as keyof typeof severityOrder] : 3;
+    candidates.push({
+      bucket,
       name: product.name,
-      fact: format.attention(reason),
-      stockDisplay: format.quantity(stock?.quantity_units ?? 0, product.unit),
+      row: {
+        id: product.id,
+        name: product.name,
+        fact: format.attention(reason),
+        stockDisplay: format.quantity(stock?.quantity_units ?? 0, product.unit),
+      },
     });
   }
 
-  // Negative stock first (a count that does not add up needs resolving), then
-  // out, then low. Within a bucket, by name, so the order is total.
-  const severityOrder = { STOCK_NEGATIVE: 0, STOCK_OUT: 1, STOCK_LOW: 2 } as const;
-  const bucketOf = (id: string): number => {
-    const product = state.products.get(id);
-    if (product === undefined) return 3;
-    const reason = productAttention(product, state.stock.get(id));
-    if (reason === null) return 3;
-    return reason.kind in severityOrder
-      ? severityOrder[reason.kind as keyof typeof severityOrder]
-      : 3;
-  };
-  stockAlerts.sort((a, b) => {
-    const d = bucketOf(a.id) - bucketOf(b.id);
+  candidates.sort((a, b) => {
+    const d = a.bucket - b.bucket;
     return d !== 0 ? d : a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
   });
+  const stockAlerts: StockAlertVM[] = candidates.map((c) => c.row);
 
   const expiryAlerts: ExpiryAlertVM[] = expiryRisks(state, events, now).map((risk) => {
     const product = state.products.get(risk.product_id);
@@ -362,8 +366,6 @@ export function buildDailySummaryVM(
 // Customer detail — UI_SPEC screen 6, "Running balance, full history."
 // ---------------------------------------------------------------------------
 
-const DAY_MS_DETAIL = 86_400_000;
-
 /**
  * `events` is this customer's own event slice (eventStore.eventsForCustomer),
  * not the whole log — customerHistory() filters and orders it, this file
@@ -386,7 +388,7 @@ export function buildCustomerDetailVM(
         line.event.type === 'CREDIT_GIVEN' || line.event.type === 'PAYMENT_RECEIVED'
           ? (line.event.payload.occurred_at ?? line.event.created_at)
           : line.event.created_at;
-      const daysAgo = Math.floor((now - at) / DAY_MS_DETAIL);
+      const daysAgo = daysSince(at, now);
       const amount =
         line.event.type === 'CREDIT_GIVEN' || line.event.type === 'PAYMENT_RECEIVED'
           ? line.event.payload.amount_poisha

@@ -45,12 +45,23 @@ function generateUuidLike(): string {
 }
 
 export async function bootstrap(): Promise<AppData> {
-  const db = await openExpoDatabase(DATABASE_NAME);
-  await db.execAsync(ALL_SCHEMA_SQL);
+  // FIXED — found during a whole-project audit: these three used to run one
+  // after another (`db` open+schema, then device_id, then shop_id), but
+  // device_id/shop_id are independent SecureStore reads that don't depend
+  // on `db` at all — App.tsx renders a blank screen until this resolves, so
+  // every millisecond here is added cold-start latency for no reason,
+  // against UI_SPEC.md's own "<3s cold start" acceptance criterion.
+  const [db, deviceId, shopId] = await Promise.all([
+    openExpoDatabase(DATABASE_NAME).then(async (opened) => {
+      await opened.execAsync(ALL_SCHEMA_SQL);
+      return opened;
+    }),
+    getOrCreateDeviceId(SecureStore, generateUuidLike),
+    getOrCreateId(SecureStore, SHOP_ID_KEY, generateUuidLike),
+  ]);
 
-  const deviceId = await getOrCreateDeviceId(SecureStore, generateUuidLike);
-  const shopId = await getOrCreateId(SecureStore, SHOP_ID_KEY, generateUuidLike);
-
+  // Genuinely sequential: the clock needs both db (to read this device's
+  // last-known hlc) and deviceId, so it can only start once the above settles.
   const clock = await createDeviceClock(db, deviceId);
   const getRandomBytes = Crypto.getRandomBytes;
 

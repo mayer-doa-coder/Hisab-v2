@@ -24,4 +24,6 @@ export const common: CommonStrings = {
   pinMismatch: "The two PINs didn't match",
   pinIncorrect: 'Incorrect PIN',
   pinLocked: 'Try again in a moment',
+
+  actionFailed: "That didn't work — try again",
 };

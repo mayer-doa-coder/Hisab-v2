@@ -19,7 +19,7 @@ void test('archiveCustomer succeeds for a real customer', async () => {
   });
   assert.ok(!('kind' in built));
 
-  const result = await archiveCustomer(db, store, 'c1', 'REQUESTED');
+  const result = await archiveCustomer(store, 'c1', 'REQUESTED');
   assert.deepEqual(result, { kind: 'OK' });
 
   const rows = await db.getAllAsync<{ archived: number }>('SELECT archived FROM customers WHERE id = ?', [
@@ -30,7 +30,7 @@ void test('archiveCustomer succeeds for a real customer', async () => {
 
 void test('archiveCustomer rejects a customer_id that was never added', async () => {
   const { db, store } = await createTestStore();
-  const result = await archiveCustomer(db, store, 'ghost', 'REQUESTED');
+  const result = await archiveCustomer(store, 'ghost', 'REQUESTED');
   assert.deepEqual(result, { kind: 'UNKNOWN_CUSTOMER' });
 });
 
@@ -63,7 +63,7 @@ void test('REGRESSION: a customer whose CUSTOMER_ADDED was voided is UNKNOWN, no
   const projected = await db.getAllAsync('SELECT 1 FROM customers WHERE id = ?', ['c1']);
   assert.equal(projected.length, 0, 'premise: the customer must not exist after rebuild');
 
-  const result = await archiveCustomer(db, store, 'c1', 'REQUESTED');
+  const result = await archiveCustomer(store, 'c1', 'REQUESTED');
   assert.deepEqual(result, { kind: 'UNKNOWN_CUSTOMER' });
 });
 
@@ -91,9 +91,9 @@ void test('archiving an already-archived customer succeeds (idempotent), and ENT
     reason: 'MISTAKE',
   });
 
-  const first = await archiveCustomer(db, store, 'c1', 'INACTIVE');
+  const first = await archiveCustomer(store, 'c1', 'INACTIVE');
   assert.deepEqual(first, { kind: 'OK' });
 
-  const second = await archiveCustomer(db, store, 'c1', 'REQUESTED');
+  const second = await archiveCustomer(store, 'c1', 'REQUESTED');
   assert.deepEqual(second, { kind: 'OK' }, 'archiving twice must not error');
 });

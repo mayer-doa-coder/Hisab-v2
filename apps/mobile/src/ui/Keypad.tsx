@@ -9,6 +9,7 @@
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { fontFamily, fontSize, minTouchTarget, spacing } from './typography';
+import { colors } from './colors';
 
 export type KeypadKey = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'backspace' | 'confirm';
 
@@ -79,10 +80,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
-    backgroundColor: '#F1F4F2',
+    backgroundColor: colors.keypadKey,
   },
   confirmKey: {
-    backgroundColor: '#1B6E4A',
+    backgroundColor: colors.accent,
   },
   pressed: {
     opacity: 0.7,
@@ -90,9 +91,9 @@ const styles = StyleSheet.create({
   keyLabel: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.xl,
-    color: '#14231C',
+    color: colors.textPrimary,
   },
   confirmLabel: {
-    color: '#FFFFFF',
+    color: colors.white,
   },
 });

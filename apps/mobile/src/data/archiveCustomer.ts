@@ -28,35 +28,8 @@
 // way every other screen in this codebase already writes an event.
 
 import { fold } from '@hisab/domain';
-import type { AnyEvent, CustomerArchiveReason } from '@hisab/domain';
+import type { CustomerArchiveReason } from '@hisab/domain';
 import type { EventStore } from './eventStore';
-import type { Database, SqlRow } from './db';
-
-interface EventRow extends SqlRow {
-  id: string;
-  device_id: string;
-  seq: number;
-  hlc: string;
-  shop_id: string;
-  type: string;
-  payload: string;
-  created_at: number;
-  synced_at: number | null;
-}
-
-function rowToEvent(row: EventRow): AnyEvent {
-  return {
-    id: row.id,
-    device_id: row.device_id,
-    seq: row.seq,
-    hlc: row.hlc,
-    shop_id: row.shop_id,
-    type: row.type,
-    payload: JSON.parse(row.payload),
-    created_at: row.created_at,
-    synced_at: row.synced_at,
-  } as AnyEvent;
-}
 
 export type ArchiveCustomerResult =
   | { readonly kind: 'OK' }
@@ -64,33 +37,22 @@ export type ArchiveCustomerResult =
   | { readonly kind: 'VALIDATION_ERROR' };
 
 export async function archiveCustomer(
-  db: Database,
   store: EventStore,
   customerId: string,
   reason: CustomerArchiveReason,
 ): Promise<ArchiveCustomerResult> {
-  // FIXED — found during a whole-project audit: this query used to select
-  // only events whose payload has `customer_id` directly, which excludes
-  // ENTRY_VOIDED events (their payload carries `voids_event_id`, never
-  // `customer_id`). That made the fold below incomplete: if this customer's
-  // own CUSTOMER_ADDED had been voided, the un-voided CUSTOMER_ADDED would
-  // still be included and `state.customers.has(customerId)` would wrongly
-  // read true, letting a CUSTOMER_ARCHIVED be appended for a customer_id
-  // that — per the real, full-log fold — no longer exists. Mirrors
-  // eventStore.ts's getEventsForCustomer exactly, which does not have this
-  // gap, for the same reason: ENTRY_VOIDED can target ANY event id,
-  // including CUSTOMER_ADDED (EVENTS.md §3), not only CREDIT_GIVEN/
-  // PAYMENT_RECEIVED.
-  const rows = await db.getAllAsync<EventRow>(
-    `SELECT id, device_id, seq, hlc, shop_id, type, payload, created_at, synced_at
-       FROM events
-      WHERE json_extract(payload, '$.customer_id') = ?
-         OR (type = 'ENTRY_VOIDED' AND json_extract(payload, '$.voids_event_id') IN (
-               SELECT id FROM events WHERE json_extract(payload, '$.customer_id') = ?
-             ))`,
-    [customerId, customerId],
-  );
-  const state = fold(rows.map(rowToEvent));
+  // FIXED — found during a whole-project audit: this used to hand-roll the
+  // exact same query eventStore.ts's own getEventsForCustomer already runs
+  // internally (down to the identical ENTRY_VOIDED-targeting-CUSTOMER_ADDED
+  // clause, added here after being found missing — see the removed
+  // comment's history). Two copies of a query that was once subtly wrong is
+  // exactly how that class of bug recurs: eventsForCustomer is now exposed
+  // on EventStore precisely so callers like this one don't need their own
+  // copy — added to the interface once CustomerDetailScreen needed it too,
+  // which is the same query, needed by a second caller, that should have
+  // been surfaced instead of duplicated the first time.
+  const events = await store.eventsForCustomer(customerId);
+  const state = fold(events);
 
   if (!state.customers.has(customerId)) {
     return { kind: 'UNKNOWN_CUSTOMER' };

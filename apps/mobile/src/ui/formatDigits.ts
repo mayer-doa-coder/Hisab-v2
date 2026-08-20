@@ -47,3 +47,36 @@ export function formatAmountDigits(valueTaka: number, script: NumeralScript): st
   const scripted = toNumeralScript(combined, script);
   return isNegative ? `-${scripted}` : scripted;
 }
+
+/**
+ * Formats an integer POISHA value still being composed at the keypad
+ * (UI_SPEC.md screens 4/5) — moved here from RecordEntryScreen.tsx so it is
+ * a plain, testable string function like its siblings above, rather than
+ * logic embedded in a `.tsx` screen this project's test suite cannot import
+ * (RN components don't run under plain `node --test` — see
+ * apps/mobile/test/tsconfig.json's own note on why `.tsx` stays out of the
+ * test compile).
+ *
+ * Sign-handled via STRING slicing, matching `formatter.ts`'s `formatPoisha`
+ * exactly: strip a leading `-` before slicing the last two digits into a
+ * fraction, re-prepend it after. FIXED — found during a whole-project audit:
+ * an earlier version sliced `String(poisha)` directly, so a negative
+ * composing amount (e.g. a payment prefilled from a customer's negative
+ * balance — the documented NEGATIVE_BALANCE anomaly) put the `-` in the
+ * wrong place after `padStart(3, '0')` — `-5` rendered as `"0.-5"`, `-99` as
+ * `"-.99"` — on the single largest element on screen.
+ *
+ * No `/100` anywhere: the last two digits of the poisha integer ARE the
+ * fraction, read off by string position, never computed by division —
+ * DECISIONS.md 2026-08-08's composing-amount carve-out.
+ */
+export function formatComposingPoisha(poisha: number, script: NumeralScript): string {
+  const raw = String(poisha);
+  const negative = raw.startsWith('-');
+  const digits = (negative ? raw.slice(1) : raw).padStart(3, '0');
+  const wholePart = digits.slice(0, -2);
+  const fracPart = digits.slice(-2);
+  const grouped = groupIndian(wholePart);
+  const scripted = toNumeralScript(`${grouped}.${fracPart}`, script);
+  return negative ? `-${scripted}` : scripted;
+}

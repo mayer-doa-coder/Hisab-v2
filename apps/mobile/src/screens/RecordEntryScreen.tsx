@@ -16,33 +16,29 @@
 //   - a quick chip (৫০/১০০/২০০/৫০০/১০০০) adds a literal poisha constant via
 //     plain `+` — exactly the case the carve-out names ("tap to add, tap
 //     again to add again");
-//   - display slices the integer's string form into whole/fraction parts
-//     (the last two digits ARE the poisha) and reuses formatDigits.ts's
-//     generic `groupIndian`/`toNumeralScript` — no `/100` anywhere in this
-//     file. The visual result matches Amount.tsx without needing its
-//     `valueTaka` (already-ledgered-money) contract.
+//   - display goes through formatDigits.ts's `formatComposingPoisha`, which
+//     slices the integer's string form into whole/fraction parts (the last
+//     two digits ARE the poisha) — no `/100` anywhere. Lives in
+//     formatDigits.ts rather than here so it's a plain, unit-tested string
+//     function like its siblings, not logic buried in a `.tsx` screen this
+//     project's test suite can't import. The visual result matches
+//     Amount.tsx without needing its `valueTaka` (already-ledgered-money)
+//     contract.
 // The moment Confirm is pressed, the integer poisha value is handed to the
 // caller unchanged — it becomes ledgered money there, not here.
 
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Keypad, type KeypadKey } from '../ui/Keypad';
-import { groupIndian, toNumeralScript, type NumeralScript } from '../ui/formatDigits';
+import { formatComposingPoisha, toNumeralScript, type NumeralScript } from '../ui/formatDigits';
 import { fontFamily, fontSize, spacing } from '../ui/typography';
+import { colors } from '../ui/colors';
 import { t, type Locale } from '../i18n';
 import type { Poisha } from '@hisab/domain';
 
 const QUICK_CHIPS_TAKA = [50, 100, 200, 500, 1000] as const;
 /** Nine digits of poisha is comfortably above any real credit amount (~৳9,99,999.99). */
 const MAX_POISHA_DIGITS = 9;
-
-function composingAmountDisplay(poisha: number, numeralScript: NumeralScript): string {
-  const digits = String(poisha).padStart(3, '0');
-  const wholePart = digits.slice(0, -2);
-  const fracPart = digits.slice(-2);
-  const grouped = groupIndian(wholePart);
-  return toNumeralScript(`${grouped}.${fracPart}`, numeralScript);
-}
 
 export interface RecordEntryScreenProps {
   entryKind: 'CREDIT' | 'PAYMENT';
@@ -53,6 +49,14 @@ export interface RecordEntryScreenProps {
   numeralScript: NumeralScript;
   onConfirm: (amountPoisha: Poisha) => void;
   onCancel: () => void;
+  /**
+   * A write failure already turned into a string by the caller. FIXED —
+   * found during a whole-project audit: CoreFlow.tsx used to swallow
+   * `recordEntry`'s VALIDATION_ERROR entirely — pressing Confirm on a
+   * failure did nothing visible at all, which reads as a frozen app rather
+   * than an error.
+   */
+  errorMessage?: string | null;
 }
 
 export function RecordEntryScreen({
@@ -63,6 +67,7 @@ export function RecordEntryScreen({
   numeralScript,
   onConfirm,
   onCancel,
+  errorMessage = null,
 }: RecordEntryScreenProps) {
   const [amountPoisha, setAmountPoisha] = useState<number>(initialAmountPoisha);
 
@@ -101,8 +106,10 @@ export function RecordEntryScreen({
           adjustsFontSizeToFit
           minimumFontScale={0.4}
         >
-          {composingAmountDisplay(amountPoisha, numeralScript)}
+          {formatComposingPoisha(amountPoisha, numeralScript)}
         </Text>
+
+        {errorMessage !== null ? <Text style={styles.error}>{errorMessage}</Text> : null}
 
         <View style={styles.chipRow}>
           {QUICK_CHIPS_TAKA.map((taka) => (
@@ -134,7 +141,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
     padding: spacing.md,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
   },
   top: {
     alignItems: 'center',
@@ -143,14 +150,20 @@ const styles = StyleSheet.create({
   prompt: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.lg,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.lg * 1.6,
   },
   amount: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.amount,
-    color: '#14231C',
+    color: colors.textPrimary,
     includeFontPadding: false,
+    marginTop: spacing.sm,
+  },
+  error: {
+    fontFamily: fontFamily.bold,
+    fontSize: fontSize.sm,
+    color: colors.error,
     marginTop: spacing.sm,
   },
   chipRow: {
@@ -166,8 +179,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: fontFamily.bold,
     fontSize: fontSize.md,
-    color: '#1B6E4A',
-    backgroundColor: '#E9EEEC',
+    color: colors.accent,
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 12,
     overflow: 'hidden',
   },
@@ -175,7 +188,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     padding: spacing.sm,
   },
   keypad: {

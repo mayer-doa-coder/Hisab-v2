@@ -22,7 +22,9 @@
 
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card, Divider } from '../ui/Card';
+import { EmptyState } from '../ui/EmptyState';
 import { fontFamily, fontSize, minTouchTarget, spacing } from '../ui/typography';
+import { colors } from '../ui/colors';
 import { t, type Locale } from '../i18n';
 import type { AlertsVM } from '../viewmodels/screens';
 
@@ -36,10 +38,10 @@ export function AlertsScreen({ vm, locale }: AlertsScreenProps) {
     return (
       <View style={styles.screen}>
         <Text style={styles.title}>{t(locale, 'products', 'alertsTitle')}</Text>
-        <View style={styles.emptyBlock}>
-          <Text style={styles.emptyHeadline}>{t(locale, 'products', 'alertsAllClear')}</Text>
-          <Text style={styles.emptyHint}>{t(locale, 'products', 'alertsAllClearHint')}</Text>
-        </View>
+        <EmptyState
+          headline={t(locale, 'products', 'alertsAllClear')}
+          hint={t(locale, 'products', 'alertsAllClearHint')}
+        />
       </View>
     );
   }
@@ -108,14 +110,14 @@ export function AlertsScreen({ vm, locale }: AlertsScreenProps) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F6F8F7',
+    backgroundColor: colors.screenBackground,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.lg,
   },
   title: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.lg,
-    color: '#14231C',
+    color: colors.textPrimary,
     lineHeight: fontSize.lg * 1.5,
     textAlign: 'left',
   },
@@ -128,7 +130,7 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.7,
     marginBottom: spacing.xs,
     textAlign: 'left',
@@ -145,7 +147,7 @@ const styles = StyleSheet.create({
   rowName: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#14231C',
+    color: colors.textPrimary,
     lineHeight: fontSize.md * 1.5,
     textAlign: 'left',
   },
@@ -153,29 +155,14 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
     // One neutral grey. Never red for "out", never amber for "low".
-    color: '#5B6B62',
+    color: colors.textMuted,
     lineHeight: fontSize.sm * 1.6,
     textAlign: 'left',
   },
   rowTrailing: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.md,
-    color: '#14231C',
+    color: colors.textPrimary,
     textAlign: 'right',
-  },
-  emptyBlock: { flex: 1, justifyContent: 'center' },
-  emptyHeadline: {
-    fontFamily: fontFamily.bold,
-    fontSize: fontSize.lg,
-    color: '#14231C',
-    lineHeight: fontSize.lg * 1.5,
-    textAlign: 'left',
-  },
-  emptyHint: {
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.md,
-    color: '#5B6B62',
-    lineHeight: fontSize.md * 1.6,
-    textAlign: 'left',
   },
 });

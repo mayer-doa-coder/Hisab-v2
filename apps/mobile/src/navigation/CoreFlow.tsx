@@ -21,7 +21,7 @@ import type { AppData } from '../data/bootstrap';
 import { createCustomerCommands } from '../data/customerCommands';
 import { getCustomerRow } from '../data/customerQueries';
 import { createFormatter } from '../i18n/formatter';
-import type { Locale } from '../i18n';
+import { t, type Locale } from '../i18n';
 import type { NumeralScript } from '../ui/formatDigits';
 import type { CustomerRowVM } from '../viewmodels/customer';
 import { HomeScreen } from '../screens/HomeScreen';
@@ -76,13 +76,29 @@ export function CoreFlow({ appData }: CoreFlowProps) {
 
   const [addCustomerDraft, setAddCustomerDraft] = useState<AddCustomerDraft>(EMPTY_ADD_CUSTOMER_DRAFT);
 
-  const push = useCallback((screen: ScreenState) => setStack((s) => [...s, screen]), []);
-  const pop = useCallback(() => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)), []);
-  const replaceTop = useCallback(
-    (screen: ScreenState) => setStack((s) => [...s.slice(0, -1), screen]),
-    [],
-  );
-  const resetToHome = useCallback(() => setStack([HOME]), []);
+  // FIXED — found during a whole-project audit: handleConfirmEntry and
+  // handleAddCustomerSubmit both used to just `return` on a VALIDATION_ERROR
+  // with nothing shown — Confirm/Save did nothing visible at all, reading as
+  // a frozen app. Cleared on every navigation (push/pop/replaceTop) so a
+  // stale error from a previous screen never bleeds into the next one.
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const push = useCallback((screen: ScreenState) => {
+    setErrorMessage(null);
+    setStack((s) => [...s, screen]);
+  }, []);
+  const pop = useCallback(() => {
+    setErrorMessage(null);
+    setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
+  }, []);
+  const replaceTop = useCallback((screen: ScreenState) => {
+    setErrorMessage(null);
+    setStack((s) => [...s.slice(0, -1), screen]);
+  }, []);
+  const resetToHome = useCallback(() => {
+    setErrorMessage(null);
+    setStack([HOME]);
+  }, []);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -124,7 +140,10 @@ export function CoreFlow({ appData }: CoreFlowProps) {
   const handleConfirmEntry = useCallback(
     async (screen: Extract<ScreenState, { kind: 'recordEntry' }>, amountPoisha: Poisha) => {
       const result = await commands.recordEntry(screen.entryKind, screen.customerId, amountPoisha);
-      if (result.kind !== 'OK') return;
+      if (result.kind !== 'OK') {
+        setErrorMessage(t(locale, 'common', 'actionFailed'));
+        return;
+      }
 
       void appData.timingLogger.log(
         screen.entryKind === 'CREDIT' ? 'credit_entry' : 'payment_entry',
@@ -141,7 +160,7 @@ export function CoreFlow({ appData }: CoreFlowProps) {
         newBalanceDisplay: row?.balanceDisplay ?? '',
       });
     },
-    [appData.db, appData.timingLogger, bumpRefresh, commands, format, replaceTop],
+    [appData.db, appData.timingLogger, bumpRefresh, commands, format, locale, replaceTop],
   );
 
   const handleUndo = useCallback(
@@ -161,7 +180,10 @@ export function CoreFlow({ appData }: CoreFlowProps) {
         name,
         addCustomerDraft.phone.trim() === '' ? null : addCustomerDraft.phone.trim(),
       );
-      if (result.kind !== 'OK') return;
+      if (result.kind !== 'OK') {
+        setErrorMessage(t(locale, 'common', 'actionFailed'));
+        return;
+      }
       setAddCustomerDraft(EMPTY_ADD_CUSTOMER_DRAFT);
       bumpRefresh();
 
@@ -180,7 +202,7 @@ export function CoreFlow({ appData }: CoreFlowProps) {
         replaceTop({ kind: 'customerDetail', customerId: result.customerId });
       }
     },
-    [addCustomerDraft, bumpRefresh, commands, replaceTop],
+    [addCustomerDraft, bumpRefresh, commands, locale, replaceTop],
   );
 
   switch (current.kind) {
@@ -227,6 +249,7 @@ export function CoreFlow({ appData }: CoreFlowProps) {
             pop();
           }}
           locale={locale}
+          errorMessage={errorMessage}
         />
       );
 
@@ -240,6 +263,7 @@ export function CoreFlow({ appData }: CoreFlowProps) {
           numeralScript={numeralScript}
           onConfirm={(amountPoisha) => void handleConfirmEntry(current, amountPoisha)}
           onCancel={pop}
+          errorMessage={errorMessage}
         />
       );
 

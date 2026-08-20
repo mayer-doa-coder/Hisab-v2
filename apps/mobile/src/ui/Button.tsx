@@ -3,6 +3,7 @@
 
 import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { fontFamily, fontSize, minTouchTarget, spacing } from './typography';
+import { colors } from './colors';
 
 export interface ButtonProps {
   label: string;
@@ -49,10 +50,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primary: {
-    backgroundColor: '#1B6E4A',
+    backgroundColor: colors.accent,
   },
   secondary: {
-    backgroundColor: '#E9EEEC',
+    backgroundColor: colors.surfaceSecondary,
   },
   disabled: {
     opacity: 0.4,
@@ -65,9 +66,9 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
   },
   labelPrimary: {
-    color: '#FFFFFF',
+    color: colors.white,
   },
   labelSecondary: {
-    color: '#14231C',
+    color: colors.textPrimary,
   },
 });

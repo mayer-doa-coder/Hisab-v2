@@ -34,6 +34,7 @@ import {
 import { createFormatter } from '../i18n/formatter';
 import { t, type Locale } from '../i18n';
 import { fontFamily, fontSize, spacing } from '../ui/typography';
+import { colors } from '../ui/colors';
 import type { NumeralScript } from '../ui/formatDigits';
 import { DEMO_NOW, buildDemoState } from './demoLedger';
 
@@ -120,6 +121,7 @@ export function Phase4Preview() {
                   }}
                   onCancel={() => setFormOpen(false)}
                   locale={locale}
+                  format={format}
                 />
               ) : (
                 <ProductListScreen
@@ -155,7 +157,7 @@ function Toggle({ label, active, onPress }: { label: string; active: boolean; on
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F6F8F7' },
+  root: { flex: 1, backgroundColor: colors.screenBackground },
   devBar: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -165,6 +167,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#ECF1EF',
   },
   toggle: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
-  toggleLabel: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: '#5B6B62' },
-  toggleLabelActive: { fontFamily: fontFamily.bold, color: '#1B6E4A' },
+  toggleLabel: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: colors.textMuted },
+  toggleLabelActive: { fontFamily: fontFamily.bold, color: colors.accent },
 });

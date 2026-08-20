@@ -18,6 +18,7 @@ import { Row } from '../ui/Row';
 import { SyncDot } from '../ui/Card';
 import { useScreenSecure } from '../security/screenSecure';
 import { fontFamily, fontSize, spacing } from '../ui/typography';
+import { colors } from '../ui/colors';
 import { t, type Locale } from '../i18n';
 import { listCustomerRows } from '../data/customerQueries';
 import type { Database } from '../data/db';
@@ -95,7 +96,7 @@ export function CustomerListScreen({
         value={query}
         onChangeText={setQuery}
         placeholder={t(locale, 'customers', 'searchPlaceholder')}
-        placeholderTextColor="#9AA8A1"
+        placeholderTextColor={colors.placeholder}
         autoFocus={mode === 'pick'}
         accessibilityLabel={t(locale, 'customers', 'searchPlaceholder')}
       />
@@ -124,7 +125,7 @@ export function CustomerListScreen({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F6F8F7' },
+  screen: { flex: 1, backgroundColor: colors.screenBackground },
   back: {
     minHeight: 48,
     textAlignVertical: 'center',
@@ -133,20 +134,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#5B6B62',
+    color: colors.textMuted,
   },
   search: {
     minHeight: 48,
     marginHorizontal: spacing.md,
     marginTop: spacing.sm,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: '#D8E1DD',
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: spacing.md,
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#14231C',
+    color: colors.textPrimary,
     textAlign: 'left',
   },
   list: { flex: 1, marginTop: spacing.sm },
@@ -154,14 +155,14 @@ const styles = StyleSheet.create({
   balance: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.md,
-    color: '#14231C',
+    color: colors.textPrimary,
     textAlign: 'right',
   },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#5B6B62',
+    color: colors.textMuted,
   },
   actions: {
     paddingHorizontal: spacing.md,

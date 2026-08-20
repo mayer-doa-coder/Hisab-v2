@@ -17,7 +17,7 @@
 // (packages/domain's viewmodel boundary, Step 2) — this file never formats a
 // Poisha value itself, matching "B does no money arithmetic."
 
-import { customerAttention } from '@hisab/domain';
+import { customerAttention, daysSince } from '@hisab/domain';
 import type { Poisha, ViewModelFormatter } from '@hisab/domain';
 import type { CustomerRowVM } from '../viewmodels/customer';
 
@@ -36,17 +36,20 @@ export function toCustomerRowVM(
   syncPending: boolean,
 ): CustomerRowVM {
   const balancePoisha = (row.balance_poisha ?? 0) as Poisha;
-  const daysSince =
-    row.last_activity_at === null ? null : Math.floor((now - row.last_activity_at) / 86_400_000);
-  // KNOWN GAP, not a silent choice: when last_activity_at is null (a
-  // customer with CUSTOMER_ADDED but no CREDIT_GIVEN/PAYMENT_RECEIVED yet),
-  // `daysSince ?? 0` reads as "0 days since activity" — i.e. "something
-  // happened today" — which is false; nothing has happened. ViewModelFormatter
-  // (types.ts, Step 2, already committed) has no way to express "never" —
-  // `days(count: number): string` takes no null/sentinel. Not fixed here:
-  // either the formatter contract needs a new case, or this field needs a
-  // separate boolean, and that's a shared-contract decision, not a
-  // apps/mobile/src/data/ one to make alone.
+
+  // FIXED — found during a whole-project audit: this used to fall back to
+  // `daysSince ?? 0`, which reads as "0 days since activity" (something
+  // happened today) for a customer with CUSTOMER_ADDED but no
+  // CREDIT_GIVEN/PAYMENT_RECEIVED yet — false; nothing has ever happened.
+  // `screenViewmodels.ts`'s `buildAgingVM` (added later, for the same field's
+  // sibling `AgingRowVM.daysSinceActivityDisplay`) already established the
+  // correct convention: empty string for "never," and every screen that
+  // renders this field already branches on `!== ''` to hide the subtitle
+  // rather than show a lie. Matching that convention here, rather than
+  // leaving the two viewmodels for the same underlying fact disagree with
+  // each other depending which screen a customer is viewed from.
+  const daysSinceActivityDisplay =
+    row.last_activity_at === null ? '' : format.days(daysSince(row.last_activity_at, now));
 
   // The domain picks the fact; format.attention() writes the Bengali
   // (AGENTS.md §4.8 — facts, not scores). A null reason is the normal case:
@@ -62,7 +65,7 @@ export function toCustomerRowVM(
     phone: row.phone,
     balanceDisplay: format.money(balancePoisha),
     balancePoisha: row.balance_poisha ?? 0,
-    daysSinceActivityDisplay: format.days(daysSince ?? 0),
+    daysSinceActivityDisplay,
     needsAttention: reason !== null,
     attentionReason: reason === null ? null : format.attention(reason),
     syncPending,

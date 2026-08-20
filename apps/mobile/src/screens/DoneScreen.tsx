@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { fontFamily, fontSize, spacing } from '../ui/typography';
+import { colors } from '../ui/colors';
 import { t, type Locale } from '../i18n';
 
 const UNDO_WINDOW_SECONDS = 10;
@@ -97,7 +98,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
     padding: spacing.md,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
   },
   top: {
     alignItems: 'center',
@@ -106,25 +107,25 @@ const styles = StyleSheet.create({
   kind: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.md,
-    color: '#1B6E4A',
+    color: colors.accent,
   },
   name: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.lg,
-    color: '#14231C',
+    color: colors.textPrimary,
     lineHeight: fontSize.lg * 1.6,
     marginTop: spacing.xs,
   },
   balanceLabel: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     marginTop: spacing.lg,
   },
   balance: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.amount,
-    color: '#14231C',
+    color: colors.textPrimary,
     includeFontPadding: false,
   },
   actions: {
@@ -137,8 +138,8 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
     fontFamily: fontFamily.bold,
     fontSize: fontSize.md,
-    color: '#FFFFFF',
-    backgroundColor: '#1B6E4A',
+    color: colors.white,
+    backgroundColor: colors.accent,
     borderRadius: 12,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
@@ -149,7 +150,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
     fontFamily: fontFamily.bold,
     fontSize: fontSize.md,
-    color: '#8A3B2A',
+    color: colors.error,
     padding: spacing.sm,
   },
   continueLabel: {
@@ -157,12 +158,12 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#5B6B62',
+    color: colors.textMuted,
     padding: spacing.sm,
   },
   customerModal: {
     flex: 1,
-    backgroundColor: '#14231C',
+    backgroundColor: colors.textPrimary,
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.lg,
@@ -170,12 +171,12 @@ const styles = StyleSheet.create({
   customerName: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.xl,
-    color: '#FFFFFF',
+    color: colors.white,
   },
   customerBalance: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.amount * 1.4,
-    color: '#FFFFFF',
+    color: colors.white,
     includeFontPadding: false,
     marginTop: spacing.md,
   },

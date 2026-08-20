@@ -10,6 +10,7 @@ import { Button } from '../ui/Button';
 import { SyncDot } from '../ui/Card';
 import { useScreenSecure } from '../security/screenSecure';
 import { fontFamily, fontSize, spacing } from '../ui/typography';
+import { colors } from '../ui/colors';
 import { t, type Locale } from '../i18n';
 import { getCustomerRow } from '../data/customerQueries';
 import { buildCustomerDetailVM } from '../data/screenViewmodels';
@@ -139,7 +140,7 @@ function HistoryRow({ row, locale }: { row: CustomerHistoryRowVM; locale: Locale
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F6F8F7',
+    backgroundColor: colors.screenBackground,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
@@ -150,33 +151,33 @@ const styles = StyleSheet.create({
     marginHorizontal: -spacing.sm,
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#5B6B62',
+    color: colors.textMuted,
   },
   header: { paddingBottom: spacing.sm },
   headerTopLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   name: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.lg,
-    color: '#14231C',
+    color: colors.textPrimary,
     lineHeight: fontSize.lg * 1.5,
     textAlign: 'left',
   },
   balanceLabel: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     marginTop: spacing.sm,
   },
   balance: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.amount,
-    color: '#14231C',
+    color: colors.textPrimary,
     includeFontPadding: false,
   },
   subLine: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
   },
   actions: {
     flexDirection: 'row',
@@ -187,7 +188,7 @@ const styles = StyleSheet.create({
   historyTitle: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
     marginTop: spacing.lg,
     marginBottom: spacing.xs,
     textAlign: 'left',
@@ -195,7 +196,7 @@ const styles = StyleSheet.create({
   emptyHistory: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#5B6B62',
+    color: colors.textMuted,
   },
   list: { flex: 1 },
   historyRow: {
@@ -203,30 +204,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#E4EAE7',
+    borderBottomColor: colors.borderLight,
   },
   historyRowVoided: { opacity: 0.6 },
   historyText: { flex: 1 },
   historyKind: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
-    color: '#14231C',
+    color: colors.textPrimary,
   },
   historyWhen: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
   },
   historyAmounts: { alignItems: 'flex-end' },
   historyAmount: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.md,
-    color: '#14231C',
+    color: colors.textPrimary,
   },
   strikethrough: { textDecorationLine: 'line-through' },
   historyBalanceAfter: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
-    color: '#5B6B62',
+    color: colors.textMuted,
   },
 });
